@@ -269,17 +269,12 @@ page_init(void)
 	//     Some of it is in use, some is free. Where is the kernel
 	//     in physical memory?  Which pages are already in use for
 	//     page tables and other data structures?
+    // i += 64;
 
     void *kva = boot_alloc(0);
     physaddr_t pa = PADDR(kva);
     i = pa2page(pa) - pages;
     for (; i < npages; i++) {
-	//
-	// Change the code to reflect this.
-	// NB: DO NOT actually touch the physical memory corresponding to
-	// free pages!
-	size_t i;
-	for (i = 0; i < npages; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
@@ -287,6 +282,7 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+
 }
 
 //
@@ -380,7 +376,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	// Fill this function in
 	uintptr_t pte_addr = PTE_ADDR(pgdir[PDX(va)]);
 	uint32_t pte_flags = pgdir[PDX(va)] & 0xFFF;
-
+	
 	// now page stores the physical address of our desiring page
 	// if the corresponding page exists for pte_addr
 	if ((pte_flags & PTE_P) == 0) { // page not exist
@@ -388,7 +384,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 			return NULL;
 		else {
 			struct PageInfo *page = page_alloc(1);
-
+			
 			if (page == NULL) // out of memory
 				return NULL;
 
@@ -424,8 +420,8 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 	for (; tsize < size; tsize += PGSIZE) {
 		uintptr_t vaddr = va + tsize;
 		uintptr_t paddr = pa + tsize;
-		pte_t * pte = pgdir_walk(pgdir, (const void *)vaddr, (int)1);
-		if (pte == NULL)
+		pte_t * pte = pgdir_walk(pgdir, (const void *)vaddr, (int)1); 
+		if (pte == NULL) 
 			continue;
 		*pte = paddr | perm | PTE_P;
 	}
