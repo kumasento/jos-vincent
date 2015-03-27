@@ -200,7 +200,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE), 0, PTE_W | PTE_P);
+	boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE), 0, PTE_W | PTE_P | PTE_PS);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -212,6 +212,9 @@ mem_init(void)
 	//
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
+    //
+    // set CR4 for large page (4MB)
+    lcr4(rcr4() | CR4_PSE);
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
@@ -370,21 +373,23 @@ page_decref(struct PageInfo* pp)
 // Hint 3: look at inc/mmu.h for useful macros that mainipulate page
 // table and page directory entries.
 //
+//
+//
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
 	uintptr_t pte_addr = PTE_ADDR(pgdir[PDX(va)]);
-	uint32_t pte_flags = pgdir[PDX(va)] & 0xFFF;
-	
+	uint32_t flags = pgdir[PDX(va)] & 0xFFF;
+
 	// now page stores the physical address of our desiring page
 	// if the corresponding page exists for pte_addr
-	if ((pte_flags & PTE_P) == 0) { // page not exist
+	if ((flags & PTE_P) == 0) { // page not exist
 		if (create == false)
 			return NULL;
 		else {
 			struct PageInfo *page = page_alloc(1);
-			
+
 			if (page == NULL) // out of memory
 				return NULL;
 
@@ -396,7 +401,12 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 		}
 	}
 	else {
-		return (pte_t*)KADDR(pte_addr) + PTX(va);
+        if (flags & PTE_PS) {
+            return (pde_t*)pgdir[PDX(va)];
+        }
+        else {
+            return (pte_t*)KADDR(pte_addr) + PTX(va);
+        }
 	}
 	return NULL;
 }
@@ -416,15 +426,26 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
-	size_t tsize = 0;
-	for (; tsize < size; tsize += PGSIZE) {
-		uintptr_t vaddr = va + tsize;
-		uintptr_t paddr = pa + tsize;
-		pte_t * pte = pgdir_walk(pgdir, (const void *)vaddr, (int)1); 
-		if (pte == NULL) 
-			continue;
-		*pte = paddr | perm | PTE_P;
-	}
+    size_t tsize = 0;
+    if (!(perm & PTE_PS)) {
+        for (; tsize < size; tsize += PGSIZE) {
+            uintptr_t vaddr = va + tsize;
+            uintptr_t paddr = pa + tsize;
+            pte_t * pte = pgdir_walk(pgdir, (const void *)vaddr, (int)1);
+            if (pte == NULL)
+                continue;
+            *pte = paddr | perm | PTE_P;
+        }
+    }
+    else {
+        // for large paging machenism
+        for (; tsize < size; tsize += (PGSIZE<<10)) {
+            uintptr_t vaddr = va + tsize;
+            uintptr_t paddr = pa + tsize;
+            pde_t *pde = pgdir + PDX(vaddr);
+            *pde = paddr | perm | PTE_P;
+        }
+    }
 }
 
 //
@@ -704,7 +725,6 @@ check_kern_pgdir(void)
 	for (i = 0; i < n; i += PGSIZE)
 		assert(check_va2pa(pgdir, UPAGES + i) == PADDR(pages) + i);
 
-
 	// check phys mem
 	for (i = 0; i < npages * PGSIZE; i += PGSIZE)
 		assert(check_va2pa(pgdir, KERNBASE + i) == i);
@@ -747,6 +767,11 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P))
 		return ~0;
+
+    // check with paging mechanism first
+    if (*pgdir & PTE_PS) {
+        return PTE_ADDR(*pgdir) + (va & ((1<<22)-1));
+    }
 	p = (pte_t*) KADDR(PTE_ADDR(*pgdir));
 	if (!(p[PTX(va)] & PTE_P))
 		return ~0;
