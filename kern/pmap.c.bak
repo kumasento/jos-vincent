@@ -7,7 +7,6 @@
 #include <inc/assert.h>
 
 #include <kern/pmap.h>
-#include <kern/bsys.h>
 #include <kern/kclock.h>
 
 // These variables are set by i386_detect_memory()
@@ -19,13 +18,6 @@ pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
-// BUDDY SYSTEM
-size_t bsys_npages;
-size_t bsys_max_pidx;
-// collection of all free_list
-static struct PageInfo *bsys_free_lists[MAX_FREE_LIST];
-// store the base pointer for different size of pages
-struct PageInfo *bsys_pages[MAX_FREE_LIST];
 
 // --------------------------------------------------------------
 // Detect machine's physical memory setup.
@@ -72,14 +64,6 @@ static void check_kern_pgdir(void);
 static physaddr_t check_va2pa(pde_t *pgdir, uintptr_t va);
 static void check_page(void);
 static void check_page_installed_pgdir(void);
-
-
-// Buddy System
-static void bsys_detect_memory();
-static void bsys_init();
-static void bsys_init_free_list();
-static int
-bsys_page_alloc_addr(size_t addr, size_t size, int pidx, int alloc_flags);
 
 // This simple physical memory allocator is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
@@ -146,15 +130,6 @@ mem_init(void)
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
 
-    bsys_detect_memory();
-    cprintf("Buddy System Detected: npages %d max index %d\n",
-            bsys_npages,
-            bsys_max_pidx);
-    int i;
-    for (i = 0; i < MAX_FREE_LIST; i++)
-        cprintf("%d: BSYS_PIDX %u BSYS_PSIZE %u\n",
-                i, BSYS_PSIZE(i), BSYS_PIDX(BSYS_PSIZE(i)));
-
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
@@ -176,43 +151,21 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-    //pages = (struct PageInfo *)
-    //    boot_alloc(npages * sizeof(struct PageInfo));
-
-    // for the buddy system, here need to insert different number of pages
     pages = (struct PageInfo *)
-        boot_alloc(bsys_npages * sizeof(struct PageInfo));
-    memset(pages, 0, bsys_npages * sizeof(struct PageInfo));
-    bsys_init();
-    bsys_init_free_list();
+        boot_alloc(npages * sizeof(struct PageInfo));
+    memset(pages, 0, npages * sizeof(struct PageInfo));
 
-    bsys_page_alloc_addr(0, 4096, bsys_max_pidx-1, 1);
-    bsys_page_alloc_addr(4096, 4096, bsys_max_pidx-1, 1);
-    bsys_page_alloc_addr(4096*2, 4096, bsys_max_pidx-1, 1);
-    bsys_page_alloc_addr(8192*2, 8192, bsys_max_pidx-1, 1);
-
-    for (i = 0; i < bsys_max_pidx - 1; i++)
-    {
-        struct PageInfo *pp = bsys_free_lists[i];
-        cprintf("%u: ", i);
-        while (pp != NULL)
-        {
-            cprintf("%u->", pp-bsys_pages[i]);
-            pp = pp->pp_link;
-        }
-        cprintf("END\n");
-    }
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
 	// memory management will go through the page_* functions. In
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
-	// page_init();
+	page_init();
 
-	// check_page_free_list(1);
-	// check_page_alloc();
-	// check_page();
+	check_page_free_list(1);
+	check_page_alloc();
+	check_page();
 
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
@@ -224,8 +177,8 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	// boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE),
-	// 	PADDR(pages), (PTE_U | PTE_P));
+	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE),
+		PADDR(pages), (PTE_U | PTE_P));
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -237,7 +190,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-	// boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W | PTE_P);
+	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -247,10 +200,10 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	// boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE), 0, PTE_W | PTE_P | PTE_PS);
+	boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE), 0, PTE_W | PTE_P | PTE_PS);
 
 	// Check that the initial page directory has been set up correctly.
-	// check_kern_pgdir();
+	check_kern_pgdir();
 
 	// Switch from the minimal entry page directory to the full kern_pgdir
 	// page table we just created.	Our instruction pointer should be
@@ -261,20 +214,20 @@ mem_init(void)
 	// kern_pgdir wrong.
     //
     // set CR4 for large page (4MB)
-    // lcr4(rcr4() | CR4_PSE);
-	// lcr3(PADDR(kern_pgdir));
+    lcr4(rcr4() | CR4_PSE);
+	lcr3(PADDR(kern_pgdir));
 
-	// check_page_free_list(0);
+	check_page_free_list(0);
 
 	// entry.S set the really important flags in cr0 (including enabling
 	// paging).  Here we configure the rest of the flags that we care about.
-	// cr0 = rcr0();
-	// cr0 |= CR0_PE|CR0_PG|CR0_AM|CR0_WP|CR0_NE|CR0_MP;
-	// cr0 &= ~(CR0_TS|CR0_EM);
-	// lcr0(cr0);
+	cr0 = rcr0();
+	cr0 |= CR0_PE|CR0_PG|CR0_AM|CR0_WP|CR0_NE|CR0_MP;
+	cr0 &= ~(CR0_TS|CR0_EM);
+	lcr0(cr0);
 
 	// Some more checks, only possible after kern_pgdir is installed.
-    // check_page_installed_pgdir();
+	check_page_installed_pgdir();
 }
 
 // --------------------------------------------------------------
@@ -1020,103 +973,3 @@ check_page_installed_pgdir(void)
 
 	cprintf("check_page_installed_pgdir() succeeded!\n");
 }
-
-static void
-bsys_detect_memory()
-{
-    size_t tmp_npages = npages;
-
-    bsys_npages = 0;
-    bsys_max_pidx = -1;
-    while (tmp_npages)
-    {
-        bsys_max_pidx   += 1;
-        if (bsys_max_pidx >= MAX_FREE_LIST)
-            break;
-        bsys_npages     += tmp_npages;
-        tmp_npages      /= 2;
-    }
-}
-
-static void
-bsys_init()
-{
-    struct PageInfo *tmp_pages  = pages;
-    size_t tmp_npages           = npages;
-    size_t tmp_idx              = 0;
-    while (tmp_npages != 0 && tmp_idx < MAX_FREE_LIST)
-    {
-        bsys_pages[tmp_idx++]   = tmp_pages;
-        tmp_pages              += tmp_npages;
-        tmp_npages             /= 2;
-        cprintf("bsys_pages[%u] = pages + %u\n",
-                tmp_idx-1,
-                bsys_pages[tmp_idx-1] - pages);
-    }
-}
-static void
-bsys_init_free_list()
-{
-    struct PageInfo* pp;
-    size_t start_pos    = 0;
-    int pidx = bsys_max_pidx - 1;
-    while (pidx >= 0)
-    {
-        size_t i;
-        for (i = start_pos; i < bsys_pagenum(pidx); i++)
-        {
-            pp = bsys_pages[pidx] + i;
-            pp->pp_link = bsys_free_lists[pidx];
-            bsys_free_lists[pidx] = pp;
-        }
-        start_pos = bsys_pagenum(pidx) * 2;
-        pidx --;
-    }
-}
-
-static int
-bsys_page_alloc_addr(size_t addr, size_t size, int pidx, int alloc_flags)
-{
-    cprintf("allocating: addr %u size %u pidx %u\n", addr, size, pidx);
-    struct PageInfo *pp = bsys_pa2page(pidx, addr);
-    bool pgfree = pp->pp_ref == 0;
-    bool ret = 1;
-    pp->pp_ref = 1;
-    if (pgfree)
-        bsys_free_list_remove(pidx, pp, &bsys_free_lists[pidx]);
-    if (pidx == 0 || size == BSYS_PSIZE(pidx))
-    {
-        if (alloc_flags)
-            memset(KADDR(addr), 0, size);
-        return pgfree;
-    }
-    struct PageInfo *pp1, *pp2;
-    size_t pa = bsys_page2pa(pidx, pp);
-    pp1 = bsys_pa2page(pidx-1, pa);
-    pp2 = bsys_pa2page(pidx-1, pa + BSYS_PSIZE(pidx-1));
-    int r1, r2;
-    size_t sz1, sz2;
-    size_t pgsize = BSYS_PSIZE(pidx-1);
-    if (addr < pa+pgsize && addr+size > pa+pgsize)
-    {
-        sz1 = pa+pgsize-addr;
-        sz2 = addr+size-(pa+pgsize);
-        r1 = bsys_page_alloc_addr(addr, sz1, pidx-1, alloc_flags);
-        r2 = bsys_page_alloc_addr(pa+pgsize, sz2, pidx-1, alloc_flags);
-        ret &= r1 & r2;
-    }
-    else
-    {
-        if (pgfree)
-        {
-            if (addr >= pa+pgsize)
-                bsys_free_list_insert(pidx-1, pp1, &bsys_free_lists[pidx-1]);
-            else
-                bsys_free_list_insert(pidx-1, pp2, &bsys_free_lists[pidx-1]);
-        }
-        ret &= bsys_page_alloc_addr(addr, size, pidx-1, alloc_flags);
-    }
-    return ret;
-}
-
-
