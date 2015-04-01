@@ -132,6 +132,7 @@ static uint16_t crt_pos;
 static void
 cga_init(void)
 {
+    user_vga_color = 0;
 	volatile uint16_t *cp;
 	uint16_t was;
 	unsigned pos;
@@ -162,6 +163,7 @@ cga_init(void)
 static void
 cga_putc(int c)
 {
+    c |= (user_vga_color << 8);
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
 		c |= 0x0700;

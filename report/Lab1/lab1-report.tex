@@ -1,0 +1,63 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{fontspec}
+\setromanfont{PT Serif}
+\setsansfont{PT Sans}
+\setmonofont{Consolas}
+
+\usepackage{xeCJK}
+\setCJKmainfont{Songti SC Regular}
+
+\usepackage{listings}
+\newfontfamily\Code{Consolas}
+\lstset{language=C,
+		numbers=left, 
+		basicstyle=\Code\small, 
+		frame=line,
+		float}
+		
+\usepackage{graphicx} 
+\usepackage{setspace}
+\linespread{1.2}
+
+\begin{document}
+\title{Lab 1 实习报告: Booting a PC}
+\author{赵睿哲\\
+		vincentzhaorz@pku.edu.cn}
+\date{}
+\maketitle
+
+\begin{abstract}
+本次Lab主要解决的问题是如何在硬件平台上启动一个操作系统，涉及到的概念很多，具体有硬件平台的知识，比如：80x86处理器，内存和硬盘的结构等，还涉及到软件层面的细节，比如：C和汇编语言的细节。本报告首先总结一下这次Lab中涉及到的知识点，之后分别对每个exercise和challenge进行详细的解答和分析，最后是本次实习的感悟和收获。
+\end{abstract}
+
+\section{Introduction}
+
+Lab1分为三个部分：bootstrap、bootloader以及kernel，分别对应于启动操作系统的三个关键步骤：首先，处理器从一个固定的内存地址开始，执行一系列指令以配置底层硬件；之后，处理器从硬盘中导入可执行文件，即操作系统，并跳转到程序的入口；最后，操作系统开始执行。下面分别对三个部分涉及到的知识进行总结和梳理：
+
+\subsection{bootstrap}
+
+如何在一个“空白”的硬件环境中启动一个软件？这是bootstrap需要解决的核心问题。为了理解这一点，首先需要知道intel 8088（即QEMU模拟的环境下）的内存模型，并且知道在内存中有一块区域叫做ROM，其中保存了BIOS程序。系统启动的时候首先执行的就是BIOS中的第一行代码。
+
+BIOS开始执行以后，就需要知道BIOS自己的“执行环境”是什么样的。BIOS首先是运行在16-bit实模式的环境中，之后通过修改CR0寄存器进入保护模式。实模式和保护模式除了在内存的分配机制上安全性不同以外，寻址模式也有很大的区别：实模式通过两个16进制寄存器计算得到地址，而保护模式则是通过全局描述符表来得到物理地址。前者支持的内存空间不超过1MB，后者通过虚拟内存机制可以达到4GB。
+
+单纯运行BIOS并不是我们的目的，我们需要让处理器执行我们想要运行的软件中的代码。不像BIOS是存储在ROM中，软件一定是在磁盘上的，那么BIOS的下一步就是把磁盘上的程序导入到内存中。BIOS每一次都是从磁盘的第一个扇区导入程序，因此我们可以把一个很小的程序放在第一个扇区中，让BIOS交出处理器的控制权，该程序就是bootloader。因为BIOS导入程序以后，每次都跳转到0x7C00的地址开始执行程序，因此bootloader的第一行代码就要被导入到0x7C00的位置。
+
+\subsection{bootloader}
+
+尽管我们现在已经在执行自己想要运行的程序了，但是bootloader自身大小的限制肯定不能支持我们的需求，因此bootloader需要做的事就只有一件：导入体积更大的程序，即操作系统文件。
+
+bootloader通过与磁盘的IO操作把kernel导入进来以后，接下来的一件事就是跳转到kernel的入口函数。kernel文件在这里是二进制格式的ELF文件，因此可以通过解析ELF的header得到kernel的入口。
+
+\subsection{kernel}
+
+一旦kernel被导入进来，我们就有更多的事可以做了。Lab1提供的kernel，与其说是一个操作系统，倒不如说是一个直接跑在硬件上的shell，因此我们可以做的修改很有限：一方面是改进VGA上的输出效果，另一方面则是分析运行中的栈模型。后者在之后应该会起到更大的作用。
+
+\newpage
+\input{lab1-report-exercises}
+
+\section{Conclusion}
+
+综上，Lab1是一个代码量很少，但是涉及硬件底层细节很多的项目。作为一个没有学过微机原理的同学，通过这个Lab学到了很多东西：比如实模式和保护模式究竟是什么，x86的寄存器模型与指令编码和体系结构书上的MIPS到底有多大的区别。更重要的是明白了，体会到了一个概念，即操作系统本身也只不过是一个程序而已。这个程序的运行环境，和编码框架都跟一般的C语言算法程序不一样，也更能展现C语言的真正的魅力。大家都说C语言更适合系统底层的编程，当我看到了在C代码中嵌入的asm指令，以及C函数到汇编代码的直接翻译的能力时才真切地体会到了这一点。
+
+\end{document}

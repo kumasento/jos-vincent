@@ -17,10 +17,17 @@
 #define CRT_COLS	80
 #define CRT_SIZE	(CRT_ROWS * CRT_COLS)
 
+#define VGA_COLOR_RED 4
+#define VGA_COLOR_BLUE 1
+#define VGA_COLOR_GREEN 2
+#define VGA_COLOR_BLACK 0
+
 void cons_init(void);
 int cons_getc(void);
 
 void kbd_intr(void); // irq 1
 void serial_intr(void); // irq 4
+
+int user_vga_color;
 
 #endif /* _CONSOLE_H_ */
