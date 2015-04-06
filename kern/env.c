@@ -24,7 +24,7 @@ static struct Env *env_free_list;	// Free environment list
 // Set up global descriptor table (GDT) with separate segments for
 // kernel mode and user mode.  Segments serve many purposes on the x86.
 // We don't use any of their memory-mapping capabilities, but we need
-// them to switch privilege levels. 
+// them to switch privilege levels.
 //
 // The kernel and user segments are identical except for the DPL.
 // To load the SS register, the CPL must equal the DPL.  Thus,
@@ -116,7 +116,28 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
-
+	struct Env * tail;
+	int i;
+	env_free_list = &envs[0];
+	tail = env_free_list;
+	for (i = 0; i < NENV; i++) 
+	{
+		// Mark environment as free
+		envs[i].env_status = ENV_FREE;
+		// set env_id to 0
+		envs[i].env_id = 0;
+		// insert into env_free_list
+		if (i != 0) 
+		{
+			tail->env_link = &envs[i];
+			tail = tail->env_link;
+		}	
+	}
+	for (i = NENV-1;i >= 0; --i) {
+		envs[i].env_id = 0;
+		envs[i].env_link = env_free_list;
+		env_free_list = envs+i;
+	}
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -179,6 +200,10 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+	p->pp_ref ++;
+	e->env_pgdir = (pde_t*) page2kva(p);
+	memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+	memset(e->env_pgdir, 0, PDX(UTOP)*sizeof(pde_t));
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -267,6 +292,23 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+
+	// aligned va and len
+	uint32_t a_va = ROUNDDOWN((uint32_t)va, PGSIZE);
+	uint32_t a_len = ROUNDUP((uint32_t)len, PGSIZE);
+	uint32_t tmp_va = a_va;
+	struct PageInfo *pp = NULL;
+	int ret = 0;
+	for (; tmp_va < a_va + a_len; tmp_va += PGSIZE)
+	{
+		// use page_alloc function
+		pp = page_alloc(0); // it is said that do not zero this page
+		if (pp == NULL)
+			panic("region_alloc: can't allocate new physical page.");
+		ret = page_insert(e->env_pgdir, pp, (void*)tmp_va, PTE_W | PTE_U);
+		if (ret != 0)
+			panic("region_alloc: can't insert page.");
+	}
 }
 
 //
@@ -323,11 +365,29 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	struct Proghdr *ph, *eph;
+	struct Elf * elfhdr = (struct Elf *) binary;
 
+	if (elfhdr->e_magic != ELF_MAGIC)
+		panic("load_icode: wrong magic number");
+	ph = (struct Proghdr *) (binary + elfhdr->e_phoff); // program header
+	eph = ph + elfhdr->e_phnum; // real content of elf file, but here it just works as the upper bound
+	
+	lcr3(PADDR(e->env_pgdir));
+	for (; ph < eph; ph ++)
+		if (ph->p_type == ELF_PROG_LOAD) // You should only load segments with ph->p_type == ELF_PROG_LOAD.
+		{
+			region_alloc(e, (void *)ph->p_va, ph->p_memsz); // protection bits has PTE_W and PTE_U
+			memset((void*)ph->p_va, 0, ph->p_memsz); // forgot this, thanks for the reminder
+			memcpy((void*)ph->p_va, ph->p_offset + binary, ph->p_filesz);
+		}
+	lcr3(PADDR(kern_pgdir));	
+	e->env_tf.tf_eip = elfhdr->e_entry;
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+	region_alloc(e, (void*)(USTACKTOP-PGSIZE), PGSIZE);
 }
 
 //
@@ -341,6 +401,20 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	struct Env *newenv;
+	
+	// alloc a new env
+	
+	int ret = env_alloc(&newenv, 0); // the parent id is 0
+	if (ret == -E_NO_FREE_ENV)
+		panic("env_create: all free environments have been allocated.");
+	if (ret == -E_NO_MEM)
+		panic("env_create: no enough memory.");
+
+	// load elf binary
+	load_icode(newenv, binary);
+	// set env_type
+	newenv->env_type = type;
 }
 
 //
@@ -456,7 +530,19 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-
+	if (curenv == NULL || curenv != e) 
+	{
+		//Set the current environment (if any) back to ENV_RUNNABLE if it is ENV_RUNNING
+		if (curenv != NULL && curenv->env_status == ENV_RUNNING)
+			curenv->env_status = ENV_RUNNABLE;
+		// Set 'curenv' to the new environment,
+		curenv = e;
+		curenv->env_status = ENV_RUNNING;
+		curenv->env_runs ++;
+		lcr3(PADDR(curenv->env_pgdir));
+		env_pop_tf(&curenv->env_tf);
+	}
+	//return ;
 	panic("env_run not yet implemented");
 }
 
