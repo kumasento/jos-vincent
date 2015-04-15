@@ -8,6 +8,7 @@ r = Runner(save("jos.out"),
 @test(10)
 def test_divzero():
     r.user_test("divzero")
+    print r
     r.match('Incoming TRAP frame at 0xefffff..',
             'TRAP frame at 0xf.......',
             '  trap 0x00000000 Divide error',

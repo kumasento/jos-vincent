@@ -148,7 +148,7 @@ QEMUOPTS += $(QEMUEXTRA)
 	sed "s/localhost:1234/127.0.0.1:$(GDBPORT)/" < $^ > $@
 
 gdb:
-	gdb -x .gdbinit
+	i386-jos-elf-gdb -x .gdbinit
 
 pre-qemu: .gdbinit
 

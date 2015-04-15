@@ -184,8 +184,11 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE),
-		PADDR(pages), (PTE_U | PTE_P));
+	boot_map_region(kern_pgdir,
+                    UPAGES,
+                    ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE),
+                    PADDR(pages),
+                    PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
 	// (ie. perm = PTE_U | PTE_P).
@@ -193,8 +196,11 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-    boot_map_region(kern_pgdir, UENVS, ROUNDUP(NENV * sizeof(struct Env), PGSIZE),
-            PADDR(envs), (PTE_U | PTE_P));
+    boot_map_region(kern_pgdir,
+                    UENVS,
+                    ROUNDUP(NENV * sizeof(struct Env), PGSIZE),
+                    PADDR(envs),
+                    PTE_U);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -207,7 +213,11 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W | PTE_P);
+	boot_map_region(kern_pgdir,
+                    KSTACKTOP-KSTKSIZE,
+                    KSTKSIZE,
+                    PADDR(bootstack),
+                    PTE_W);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -217,7 +227,11 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KERNBASE, ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE), 0, PTE_W | PTE_P);
+	boot_map_region(kern_pgdir,
+                    KERNBASE,
+                    ROUNDUP(0xFFFFFFFF-KERNBASE, PGSIZE),
+                    0,
+                    PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -280,10 +294,10 @@ page_init(void)
 	}
 	//  3) Then comes the IO hole [IOPHYSMEM, EXTPHYSMEM), which must
 	//     never be allocated.
-    for (; i < npages_basemem + 96; i++) {
-        pages[i].pp_ref = 0;
-        pages[i].pp_link = NULL;
-    }
+    //for (; i < npages_basemem + 96; i++) {
+    //    pages[i].pp_ref = 0;
+    //    pages[i].pp_link = NULL;
+    //}
 
 	//  4) Then extended memory [EXTPHYSMEM, ...).
 	//     Some of it is in use, some is free. Where is the kernel
@@ -294,6 +308,7 @@ page_init(void)
     void *kva = boot_alloc(0);
     physaddr_t pa = PADDR(kva);
     i = pa2page(pa) - pages;
+    //cprintf("i: %d\n", i);
     for (; i < npages; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
@@ -603,7 +618,22 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
+	uintptr_t lower_bound = (uintptr_t) va;
+	uintptr_t upper_bound = (uintptr_t) va + len;
+	uintptr_t cur_va;
+	perm = perm | PTE_P | PTE_U;
+	pte_t * pte = NULL; // only check the page table entry
+	for (cur_va = lower_bound; cur_va < upper_bound; cur_va += PGSIZE) {
+		cprintf("%x\n", (uintptr_t) cur_va);
+		user_mem_check_addr = cur_va;
+		if (cur_va >= ULIM) 
+			return -E_FAULT;
+		pte = pgdir_walk(env->env_pgdir, (void*)cur_va, 0); // no create
+		if (pte == NULL || (*pte & perm) != perm) 
+			return -E_FAULT;
+	
+		cur_va = ROUNDDOWN(cur_va, PGSIZE);
+	}
 	return 0;
 }
 

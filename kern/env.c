@@ -120,18 +120,18 @@ env_init(void)
 	int i;
 	env_free_list = &envs[0];
 	tail = env_free_list;
-	for (i = 0; i < NENV; i++) 
+	for (i = 0; i < NENV; i++)
 	{
 		// Mark environment as free
 		envs[i].env_status = ENV_FREE;
 		// set env_id to 0
 		envs[i].env_id = 0;
 		// insert into env_free_list
-		if (i != 0) 
+		if (i != 0)
 		{
 			tail->env_link = &envs[i];
 			tail = tail->env_link;
-		}	
+		}
 	}
 	for (i = NENV-1;i >= 0; --i) {
 		envs[i].env_id = 0;
@@ -271,6 +271,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
+	cprintf("%u\n", e->env_id);
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
@@ -296,10 +297,12 @@ region_alloc(struct Env *e, void *va, size_t len)
 	// aligned va and len
 	uint32_t a_va = ROUNDDOWN((uint32_t)va, PGSIZE);
 	uint32_t a_len = ROUNDUP((uint32_t)len, PGSIZE);
+	uint32_t a_end = ROUNDUP((uint32_t)va+len, PGSIZE);
+	
 	uint32_t tmp_va = a_va;
 	struct PageInfo *pp = NULL;
 	int ret = 0;
-	for (; tmp_va < a_va + a_len; tmp_va += PGSIZE)
+	for (; tmp_va < a_end; tmp_va += PGSIZE)
 	{
 		// use page_alloc function
 		pp = page_alloc(0); // it is said that do not zero this page
@@ -372,7 +375,7 @@ load_icode(struct Env *e, uint8_t *binary)
 		panic("load_icode: wrong magic number");
 	ph = (struct Proghdr *) (binary + elfhdr->e_phoff); // program header
 	eph = ph + elfhdr->e_phnum; // real content of elf file, but here it just works as the upper bound
-	
+
 	lcr3(PADDR(e->env_pgdir));
 	for (; ph < eph; ph ++)
 		if (ph->p_type == ELF_PROG_LOAD) // You should only load segments with ph->p_type == ELF_PROG_LOAD.
@@ -381,7 +384,7 @@ load_icode(struct Env *e, uint8_t *binary)
 			memset((void*)ph->p_va, 0, ph->p_memsz); // forgot this, thanks for the reminder
 			memcpy((void*)ph->p_va, ph->p_offset + binary, ph->p_filesz);
 		}
-	lcr3(PADDR(kern_pgdir));	
+	lcr3(PADDR(kern_pgdir));
 	e->env_tf.tf_eip = elfhdr->e_entry;
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
@@ -402,9 +405,9 @@ env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
 	struct Env *newenv;
-	
+
 	// alloc a new env
-	
+
 	int ret = env_alloc(&newenv, 0); // the parent id is 0
 	if (ret == -E_NO_FREE_ENV)
 		panic("env_create: all free environments have been allocated.");
@@ -530,7 +533,7 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-	if (curenv == NULL || curenv != e) 
+	if (curenv == NULL || curenv != e)
 	{
 		//Set the current environment (if any) back to ENV_RUNNABLE if it is ENV_RUNNING
 		if (curenv != NULL && curenv->env_status == ENV_RUNNING)
@@ -540,8 +543,8 @@ env_run(struct Env *e)
 		curenv->env_status = ENV_RUNNING;
 		curenv->env_runs ++;
 		lcr3(PADDR(curenv->env_pgdir));
-		env_pop_tf(&curenv->env_tf);
 	}
+	env_pop_tf(&curenv->env_tf);
 	//return ;
 	panic("env_run not yet implemented");
 }

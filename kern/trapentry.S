@@ -41,15 +41,66 @@
 	pushl $(num);							\
 	jmp _alltraps
 
+
+#define TRAPGENERATOR(name, num) \
+.data; \
+	.long name; \
+.text; \
+	TRAPHANDLER(name, num)
+
+#define TRAPGENERATOR_NOEC(name, num) \
+.data; \
+	.long name; \
+.text; \
+	TRAPHANDLER_NOEC(name, num)	
+
+#define TRAPGENERATOR_EMPTY() \
+.data;\
+	.long 0
+
+.data
+	.p2align 2
+	.globl idt_entry
+idt_entry:
 .text
-
 /*
- * Lab 3: Your code here for generating entry points for the different traps.
+ * Challenge: my code here
  */
-
-
+	TRAPGENERATOR_NOEC(trap_divide, T_DIVIDE)
+	TRAPGENERATOR_NOEC(trap_debug, T_DEBUG)
+	TRAPGENERATOR_EMPTY()
+	TRAPGENERATOR_NOEC(trap_brkpt, T_BRKPT)
+	TRAPGENERATOR_NOEC(trap_oflow, T_OFLOW)
+	TRAPGENERATOR_NOEC(trap_bound, T_BOUND)
+	TRAPGENERATOR_NOEC(trap_illop, T_ILLOP)
+	TRAPGENERATOR_NOEC(trap_device, T_DEVICE)
+	TRAPGENERATOR(trap_dblflt, T_DBLFLT)
+	TRAPGENERATOR_EMPTY()
+	TRAPGENERATOR(trap_tss, T_TSS)
+	TRAPGENERATOR(trap_segnp, T_SEGNP)
+	TRAPGENERATOR(trap_stack, T_STACK)
+	TRAPGENERATOR(trap_gpflt, T_GPFLT)
+	TRAPGENERATOR(trap_pgflt, T_PGFLT)
+	TRAPGENERATOR_EMPTY()
+	TRAPGENERATOR_NOEC(trap_fperr, T_FPERR)
+	TRAPGENERATOR_NOEC(trap_aligh, T_ALIGN)
+	TRAPGENERATOR_NOEC(trap_mchk, T_MCHK)
+	TRAPGENERATOR_NOEC(trap_simderr, T_SIMDERR) 
+.data
+	.space 112
+.text
+	TRAPGENERATOR_NOEC(th48, T_SYSCALL)
 
 /*
  * Lab 3: Your code here for _alltraps
  */
-
+_alltraps:
+	pushl %ds
+	pushl %es
+	pushal
+	pushl $GD_KD
+	popl %ds
+	pushl $GD_KD
+	popl %es
+	pushl %esp
+	call trap

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import sys, os, re, time, socket, select, subprocess, errno, shutil
-from subprocess import check_call, Popen
+from subprocess import Popen
 from optparse import OptionParser
 
 __all__ = []
@@ -257,8 +257,8 @@ QEMU appears to already be running.  Please exit it if possible or use
 'killall qemu' or 'killall qemu.real'.""" % self.get_gdb_port(), file=sys.stderr)
             sys.exit(1)
 
-        if options.verbose:
-            show_command(("make",) + make_args)
+        #if options.verbose:
+        show_command(("make",) + make_args)
         cmd = ("make", "-s", "--no-print-directory") + make_args
         self.proc = Popen(cmd, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT,
@@ -312,7 +312,7 @@ class GDBClient(object):
             self.sock = socket.socket()
             try:
                 self.sock.settimeout(1)
-                self.sock.connect(("localhost", port))
+                self.sock.connect(("127.0.0.1", port))
                 break
             except socket.error:
                 if time.time() >= start + timeout:
