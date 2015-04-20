@@ -626,12 +626,12 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 	for (cur_va = lower_bound; cur_va < upper_bound; cur_va += PGSIZE) {
 		cprintf("%x\n", (uintptr_t) cur_va);
 		user_mem_check_addr = cur_va;
-		if (cur_va >= ULIM) 
+		if (cur_va >= ULIM)
 			return -E_FAULT;
 		pte = pgdir_walk(env->env_pgdir, (void*)cur_va, 0); // no create
-		if (pte == NULL || (*pte & perm) != perm) 
+		if (pte == NULL || (*pte & perm) != perm)
 			return -E_FAULT;
-	
+
 		cur_va = ROUNDDOWN(cur_va, PGSIZE);
 	}
 	return 0;

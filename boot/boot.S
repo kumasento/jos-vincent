@@ -68,7 +68,7 @@ protcseg:
   movl    $start, %esp
   call bootmain
 
-  # If bootmain returns (it shouldn't), loop.
+  # If bootmain returns (it shouldnt), loop.
 spin:
   jmp spin
 
