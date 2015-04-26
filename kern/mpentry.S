@@ -77,7 +77,8 @@ start32:
 	movl    $mp_main, %eax
 	call    *%eax
 
-	# If mp_main returns (it shouldn't), loop.
+	# If mp_main returns (it shouldnt), loop.
+	
 spin:
 	jmp     spin
 
