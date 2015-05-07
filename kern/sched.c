@@ -29,7 +29,22 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
-
+	//cprintf("sched_yield: cpu id %d\n", thiscpu->cpu_id);
+	int curidx = (curenv == NULL) ? -1 : curenv - envs;
+	int idx = curidx + 1;
+	int cnt = 0;
+	for (; cnt < NENV; idx=(idx+1)%NENV, cnt ++) {
+		if (envs[idx].env_status == ENV_RUNNABLE) {
+			//cprintf("selected %d env\n", idx);
+			env_run(&envs[idx]); // here will simply jump
+			panic("If run, never come back...\n");
+		}
+	}
+	//cprintf("sched_yield: There's no existing RUNNABLE env.\n");
+	// check current 
+	
+	if (curenv != NULL && curenv->env_status == ENV_RUNNING && curenv->env_cpunum == cpunum())
+		env_run(curenv);
 	// sched_halt never returns
 	sched_halt();
 }
@@ -40,6 +55,7 @@ sched_yield(void)
 void
 sched_halt(void)
 {
+	//cprintf("Entered halt...\n");
 	int i;
 
 	// For debugging and testing purposes, if there are no runnable

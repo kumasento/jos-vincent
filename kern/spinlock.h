@@ -2,6 +2,7 @@
 #define JOS_INC_SPINLOCK_H
 
 #include <inc/types.h>
+#include <kern/cpu.h>
 
 // Comment this to disable spinlock debugging
 #define DEBUG_SPINLOCK
@@ -31,11 +32,13 @@ static inline void
 lock_kernel(void)
 {
 	spin_lock(&kernel_lock);
+	//cprintf("lock hold by %d\n", thiscpu->cpu_id);
 }
 
 static inline void
 unlock_kernel(void)
 {
+	//cprintf("lock released from %d\n", thiscpu->cpu_id);
 	spin_unlock(&kernel_lock);
 
 	// Normally we wouldn't need to do this, but QEMU only runs

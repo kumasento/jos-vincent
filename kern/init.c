@@ -50,20 +50,26 @@ i386_init(void)
 
 	// Lab 3 user environment initialization functions
 	env_init();
+	cprintf("passed env_init()\n");
 	trap_init();
-
+	cprintf("passed trap_init()\n");
 	// Lab 4 multiprocessor initialization functions
 	mp_init();
+	cprintf("passed mp_init()\n");
 	lapic_init();
+	cprintf("passed lapic_init()\n");
 
 	// Lab 4 multitasking initialization functions
 	pic_init();
+	cprintf("passed pic_init()\n");
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
 
 	// Starting non-boot CPUs
+	lock_kernel();
 	boot_aps();
+	cprintf("passed boot_aps()\n");
 
 #if defined(TEST)
 	// Don't touch -- used by grading script!
@@ -73,7 +79,15 @@ i386_init(void)
 	//ENV_CREATE(user_divzero, ENV_TYPE_USER);
 	//ENV_CREATE(user_softint, ENV_TYPE_USER);
 	//ENV_CREATE(user_badsegment, ENV_TYPE_USER);
-	ENV_CREATE(user_primes, ENV_TYPE_USER);
+	//ENV_CREATE(user_divzero, ENV_TYPE_USER);
+	
+	// Exercise 6 test
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+
+	// Exercise 7 test
+	ENV_CREATE(user_dumbfork, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Schedule and run the first user environment!
@@ -105,6 +119,7 @@ boot_aps(void)
 		// Tell mpentry.S what stack to use 
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
+
 		lapic_startap(c->cpu_id, PADDR(code));
 		// Wait for the CPU to finish some basic setup in mp_main()
 		while(c->cpu_status != CPU_STARTED)
@@ -121,18 +136,23 @@ mp_main(void)
 	cprintf("SMP: CPU %d starting\n", cpunum());
 
 	lapic_init();
+	//cprintf("CPU %d: passed lapic_init()\n", cpunum());
 	env_init_percpu();
+	//cprintf("CPU %d: passed env_init_percpu()\n", cpunum());
 	trap_init_percpu();
+	//cprintf("CPU %d: passed trap_init_percpu()\n", cpunum());
 	xchg(&thiscpu->cpu_status, CPU_STARTED); // tell boot_aps() we're up
+
 
 	// Now that we have finished some basic setup, call sched_yield()
 	// to start running processes on this CPU.  But make sure that
 	// only one CPU can enter the scheduler at a time!
 	//
 	// Your code here:
-
+	lock_kernel();
+	sched_yield();
 	// Remove this after you finish Exercise 4
-	for (;;);
+	//for (;;);
 }
 
 /*

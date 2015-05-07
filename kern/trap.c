@@ -72,7 +72,27 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	//LAB 3: Your code here.
-	/*
+	extern void trap_divide(); 
+	extern void trap_debug();
+	extern void trap_nmi();
+	extern void trap_brkpt(); 
+	extern void trap_oflow();
+	extern void trap_bound();
+	extern void trap_illop();
+	extern void trap_device();
+	extern void trap_dblflt();
+	extern void trap_tss();
+	extern void trap_segnp(); 
+	extern void trap_stack();
+	extern void trap_gpflt();
+	extern void trap_pgflt();
+	extern void trap_fperr();
+	extern void trap_align();
+	extern void trap_mchk();
+	extern void trap_simderr();
+	extern void trap_syscall();
+
+
 	SETGATE(idt[T_DIVIDE],  0, GD_KT, trap_divide,  0);
 	SETGATE(idt[T_DEBUG], 	0, GD_KT, trap_debug, 	0);
 	SETGATE(idt[T_NMI], 	0, GD_KT, trap_nmi, 	0);
@@ -92,18 +112,6 @@ trap_init(void)
 	SETGATE(idt[T_MCHK], 	0, GD_KT, trap_mchk, 	0);
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, trap_simderr, 0);
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, trap_syscall, 3);
-	*/
-
-	//SETGATE(idt[0], 0, GD_KT, idt_entry[0], 0);
-	extern void (*idt_entry[])();
-	int i;
-	for (i = 0; i <= 19; ++i) {
-		if (i == T_BRKPT)
-		{ SETGATE(idt[i], 0, GD_KT, idt_entry[i], 3); }
-		else
-		{ SETGATE(idt[i], 0, GD_KT, idt_entry[i], 0); }
-	}
-	SETGATE(idt[48], 0, GD_KT, idt_entry[48], 3);
 
 	// Per-CPU setup
 	trap_init_percpu();
@@ -138,17 +146,21 @@ trap_init_percpu(void)
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
-	ts.ts_esp0 = KSTACKTOP;
-	ts.ts_ss0 = GD_KD;
+	int cpu_id = thiscpu->cpu_id;
+	//cprintf("Doing cpu: %d\n", cpu_id);
+	//cprintf("%x %x\n", KSTACKTOP - cpu_id * (KSTKSIZE + KSTKGAP), PADDR(percpu_kstacks[cpu_id]));
+	thiscpu->cpu_ts.ts_esp0 = (uintptr_t)percpu_kstacks[cpu_id];//KSTACKTOP - cpu_id * (KSTKSIZE + KSTKGAP);
+	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 
 	// Initialize the TSS slot of the gdt.
-	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
+	gdt[(GD_TSS0>>3)+cpu_id] = SEG16(STS_T32A, (uint32_t) (&thiscpu->cpu_ts),
 					sizeof(struct Taskstate) - 1, 0);
-	gdt[GD_TSS0 >> 3].sd_s = 0;
+	gdt[(GD_TSS0>>3)+cpu_id].sd_s = 0;
 
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0);
+	//if (cpu_id == 0)
+	ltr(GD_TSS0+(cpu_id<<3));
 
 	// Load the IDT
 	lidt(&idt_pd);
@@ -205,12 +217,14 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	//cprintf("trap_dispatch with trap number: %d\n", tf->tf_trapno);
 	int32_t ret;
 	switch(tf->tf_trapno) 
 	{
 		case T_PGFLT: page_fault_handler(tf); break;
 		case T_BRKPT: monitor(tf); break;
 		case T_SYSCALL: 
+			//cprintf("Eip: %x\n", tf->tf_eip);
 			//print_trapframe(tf);
 			ret = syscall(tf->tf_regs.reg_eax,
 						  tf->tf_regs.reg_edx,
@@ -220,12 +234,13 @@ trap_dispatch(struct Trapframe *tf)
 						  tf->tf_regs.reg_esi);
 			if (ret < 0)
 				panic("trap_dispatch: syscall number invalid");
+			//cprintf("Syscall return number: %u\n", ret);
 			tf->tf_regs.reg_eax = ret;
 			return ;
 		default: break;
 	}
 
-	cprintf("Met unexpected trap:\n");
+	//cprintf("Met unexpected trap:\n");
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -241,7 +256,7 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 4: Your code here.
 
 	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
+	// print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
 	else {
@@ -264,18 +279,22 @@ trap(struct Trapframe *tf)
 
 	// Re-acqurie the big kernel lock if we were halted in
 	// sched_yield()
-	if (xchg(&thiscpu->cpu_status, CPU_STARTED) == CPU_HALTED)
+	if (xchg(&thiscpu->cpu_status, CPU_STARTED) == CPU_HALTED) {
 		lock_kernel();
+	}
 	// Check that interrupts are disabled.  If this assertion
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
 	// the interrupt path.
 	assert(!(read_eflags() & FL_IF));
 
+	//cprintf("Trapped from mode: %d\n", (tf->tf_cs&3));
 	if ((tf->tf_cs & 3) == 3) {
+		//cprintf("Entered trap from user mode...\n");
 		// Trapped from user mode.
 		// Acquire the big kernel lock before doing any
 		// serious kernel work.
 		// LAB 4: Your code here.
+		lock_kernel();
 		assert(curenv);
 
 		// Garbage collect if current enviroment is a zombie
@@ -303,8 +322,11 @@ trap(struct Trapframe *tf)
 	// If we made it to this point, then no other environment was
 	// scheduled, so we should return to the current environment
 	// if doing so makes sense.
-	if (curenv && curenv->env_status == ENV_RUNNING)
+	if (curenv && curenv->env_status == ENV_RUNNING){
+		///cprintf("After dispatch ...\n");
+		//print_trapframe(tf);
 		env_run(curenv);
+	}
 	else
 		sched_yield();
 }

@@ -42,55 +42,25 @@
 	pushl $(num);							\
 	jmp _alltraps
 
-
-#define TRAPGENERATOR(name, num) \
-.data; \
-	.long name; \
-.text; \
-	TRAPHANDLER(name, num)
-
-#define TRAPGENERATOR_NOEC(name, num) \
-.data; \
-	.long name; \
-.text; \
-	TRAPHANDLER_NOEC(name, num)	
-
-#define TRAPGENERATOR_EMPTY() \
-.data;\
-	.long 0
-
-.data
-	.p2align 2
-	.globl idt_entry
-idt_entry:
-.text
-/*
- * Challenge: my code here
- */
-	TRAPGENERATOR_NOEC(trap_divide, T_DIVIDE)
-	TRAPGENERATOR_NOEC(trap_debug, T_DEBUG)
-	TRAPGENERATOR_EMPTY()
-	TRAPGENERATOR_NOEC(trap_brkpt, T_BRKPT)
-	TRAPGENERATOR_NOEC(trap_oflow, T_OFLOW)
-	TRAPGENERATOR_NOEC(trap_bound, T_BOUND)
-	TRAPGENERATOR_NOEC(trap_illop, T_ILLOP)
-	TRAPGENERATOR_NOEC(trap_device, T_DEVICE)
-	TRAPGENERATOR(trap_dblflt, T_DBLFLT)
-	TRAPGENERATOR_EMPTY()
-	TRAPGENERATOR(trap_tss, T_TSS)
-	TRAPGENERATOR(trap_segnp, T_SEGNP)
-	TRAPGENERATOR(trap_stack, T_STACK)
-	TRAPGENERATOR(trap_gpflt, T_GPFLT)
-	TRAPGENERATOR(trap_pgflt, T_PGFLT)
-	TRAPGENERATOR_EMPTY()
-	TRAPGENERATOR_NOEC(trap_fperr, T_FPERR)
-	TRAPGENERATOR_NOEC(trap_aligh, T_ALIGN)
-	TRAPGENERATOR_NOEC(trap_mchk, T_MCHK)
-	TRAPGENERATOR_NOEC(trap_simderr, T_SIMDERR) 
-.data
-	.space 112
-.text
-	TRAPGENERATOR_NOEC(th48, T_SYSCALL)
+TRAPHANDLER_NOEC(trap_divide, T_DIVIDE)
+TRAPHANDLER_NOEC(trap_debug, T_DEBUG)
+TRAPHANDLER_NOEC(trap_nmi, T_NMI)
+TRAPHANDLER_NOEC(trap_brkpt, T_BRKPT)
+TRAPHANDLER_NOEC(trap_oflow, T_OFLOW)
+TRAPHANDLER_NOEC(trap_bound, T_BOUND)
+TRAPHANDLER_NOEC(trap_illop, T_ILLOP)
+TRAPHANDLER_NOEC(trap_device, T_DEVICE)
+TRAPHANDLER(trap_dblflt, T_DBLFLT)
+TRAPHANDLER(trap_tss, T_TSS)
+TRAPHANDLER(trap_segnp, T_SEGNP)
+TRAPHANDLER(trap_stack, T_STACK)
+TRAPHANDLER(trap_gpflt, T_GPFLT)
+TRAPHANDLER(trap_pgflt, T_PGFLT)
+TRAPHANDLER_NOEC(trap_fperr, T_FPERR)
+TRAPHANDLER_NOEC(trap_align, T_ALIGN)
+TRAPHANDLER_NOEC(trap_mchk, T_MCHK)
+TRAPHANDLER_NOEC(trap_simderr, T_SIMDERR) 
+TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL)
 
 /*
  * Lab 3: Your code here for _alltraps

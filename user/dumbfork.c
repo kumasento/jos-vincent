@@ -50,10 +50,14 @@ dumbfork(void)
 	// so that the child will appear to have called sys_exofork() too -
 	// except that in the child, this "fake" call to sys_exofork()
 	// will return 0 instead of the envid of the child.
-	envid = sys_exofork();
+	envid = sys_exofork_dumb();
+
+	cprintf("After sys_exofork(), return %d.\n", envid);
+
 	if (envid < 0)
 		panic("sys_exofork: %e", envid);
 	if (envid == 0) {
+		cprintf("In the child.\n");
 		// We're the child.
 		// The copied value of the global variable 'thisenv'
 		// is no longer valid (it refers to the parent!).

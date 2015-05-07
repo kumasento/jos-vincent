@@ -40,7 +40,14 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 void
 sys_cputs(const char *s, size_t len)
 {
+	//cprintf("Calling sys_cputs ...\n");
 	syscall(SYS_cputs, 0, (uint32_t)s, len, 0, 0, 0);
+}
+
+envid_t 
+sys_exofork_dumb(void) 
+{
+	return syscall(SYS_exofork, 0, 0, 0, 0, 0, 0);
 }
 
 int
@@ -58,7 +65,8 @@ sys_env_destroy(envid_t envid)
 envid_t
 sys_getenvid(void)
 {
-	 return syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
+	//cprintf("Calling sys_getenvid from user mode ...\n");
+	return syscall(SYS_getenvid, 0, 0, 0, 0, 0, 0);
 }
 
 void

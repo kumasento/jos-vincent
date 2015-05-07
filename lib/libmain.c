@@ -12,14 +12,16 @@ void
 libmain(int argc, char **argv)
 {
 	// set thisenv to point at our Env structure in envs[].
-	// LAB 3: Your code here.
+	// LAB 3: Your code here
 	envid_t envid = sys_getenvid();
+	//cprintf("envid: %u\n", envid);
 	thisenv = envs + ENVX(envid);
 
 	// save the name of the program so that panic() can use it
 	if (argc > 0)
 		binaryname = argv[0];
-
+	//cprintf("Hello World\n");
+	//cprintf("libmain: running binary %s\n", binaryname);
 	// call user main routine
 	umain(argc, argv);
 

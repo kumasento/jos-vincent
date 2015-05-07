@@ -288,7 +288,17 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+	int i = 0;
+	uint32_t kstacktop_i = KSTACKTOP;
+	for (; i < NCPU; i ++) {
+		//cprintf("i: %d percpu_kstacks: %x bootstack: %x\n", i, percpu_kstacks[i], bootstack);
+		boot_map_region(kern_pgdir,
+                kstacktop_i-KSTKSIZE,
+                KSTKSIZE,
+                PADDR(percpu_kstacks[i]),
+                PTE_W);
+		kstacktop_i -= (KSTKSIZE + KSTKGAP);
+	}
 }
 
 // --------------------------------------------------------------
@@ -322,9 +332,11 @@ page_init(void)
 	//     is free.
 	size_t i;
     for (i = 1; i < npages_basemem; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
+		if (page2pa(&pages[i]) != MPENTRY_PADDR) {
+			pages[i].pp_ref = 0;
+			pages[i].pp_link = page_free_list;
+			page_free_list = &pages[i];
+		}
 	}
 	//  3) Then comes the IO hole [IOPHYSMEM, EXTPHYSMEM), which must
 	//     never be allocated.
@@ -660,7 +672,18 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	size_t rsize = ROUNDUP(size, PGSIZE);
+	if (base + rsize >= MMIOLIM) 
+		panic("mmio_map_region overflowed MMIOLIM");
+	boot_map_region(kern_pgdir,
+                    base,
+                    rsize,
+                    pa,
+                    PTE_PCD | PTE_PWT | PTE_W);
+	uintptr_t rbase = base;
+	base += rsize;
+	return (void *)rbase;
+	//panic("mmio_map_region not implemented");
 }
 
 static uintptr_t user_mem_check_addr;
@@ -693,7 +716,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 	perm = perm | PTE_P | PTE_U;
 	pte_t * pte = NULL; // only check the page table entry
 	for (cur_va = lower_bound; cur_va < upper_bound; cur_va += PGSIZE) {
-		cprintf("%x\n", (uintptr_t) cur_va);
+		//cprintf("%x\n", (uintptr_t) cur_va);
 		user_mem_check_addr = cur_va;
 		if (cur_va >= ULIM)
 			return -E_FAULT;
@@ -900,10 +923,14 @@ check_kern_pgdir(void)
 	// check kernel stack
 	// (updated in lab 4 to check per-CPU kernel stacks)
 	for (n = 0; n < NCPU; n++) {
+		//cprintf("n: %d\n", n);
 		uint32_t base = KSTACKTOP - (KSTKSIZE + KSTKGAP) * (n + 1);
-		for (i = 0; i < KSTKSIZE; i += PGSIZE)
+		for (i = 0; i < KSTKSIZE; i += PGSIZE) {
+			//cprintf("i: %d check_va2pa: %x paddr: %x\n", i, check_va2pa(pgdir, base + KSTKGAP + i), PADDR(percpu_kstacks[n]) + i);
 			assert(check_va2pa(pgdir, base + KSTKGAP + i)
 				== PADDR(percpu_kstacks[n]) + i);
+		}
+		
 		for (i = 0; i < KSTKGAP; i += PGSIZE)
 			assert(check_va2pa(pgdir, base + i) == ~0);
 	}

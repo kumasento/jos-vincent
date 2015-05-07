@@ -283,7 +283,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
-	cprintf("%u\n", e->env_id);
+	//cprintf("%u\n", e->env_id);
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
@@ -419,17 +419,18 @@ env_create(uint8_t *binary, enum EnvType type)
 	struct Env *newenv;
 
 	// alloc a new env
-
 	int ret = env_alloc(&newenv, 0); // the parent id is 0
 	if (ret == -E_NO_FREE_ENV)
 		panic("env_create: all free environments have been allocated.");
 	if (ret == -E_NO_MEM)
 		panic("env_create: no enough memory.");
 
+
 	// load elf binary
 	load_icode(newenv, binary);
 	// set env_type
 	newenv->env_type = type;
+	//cprintf("passed env_create()\n");
 }
 
 //
@@ -493,6 +494,7 @@ env_free(struct Env *e)
 void
 env_destroy(struct Env *e)
 {
+	//cprintf("ENTER env_destroy...\n");
 	// If e is currently running on other CPUs, we change its state to
 	// ENV_DYING. A zombie environment will be freed the next time
 	// it traps to the kernel.
@@ -502,7 +504,7 @@ env_destroy(struct Env *e)
 	}
 
 	env_free(e);
-
+	//cprintf("Exited env_free...\n");
 	if (curenv == e) {
 		curenv = NULL;
 		sched_yield();
@@ -521,7 +523,7 @@ env_pop_tf(struct Trapframe *tf)
 {
 	// Record the CPU we are running on for user-space debugging
 	curenv->env_cpunum = cpunum();
-
+	
 	__asm __volatile("movl %0,%%esp\n"
 		"\tpopal\n"
 		"\tpopl %%es\n"
@@ -570,6 +572,9 @@ env_run(struct Env *e)
 		curenv->env_runs ++;
 		lcr3(PADDR(curenv->env_pgdir));
 	}
+	//cprintf("tf_cs: %d\n", curenv->env_tf.tf_cs & 3);
+	//cprintf("Will run env: %d\n", curenv-envs);
+	unlock_kernel();
 	env_pop_tf(&curenv->env_tf);
 	//return ;
 	panic("env_run not yet implemented");
