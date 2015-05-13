@@ -87,7 +87,9 @@ i386_init(void)
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
 
 	// Exercise 7 test
-	ENV_CREATE(user_dumbfork, ENV_TYPE_USER);
+	// ENV_CREATE(user_dumbfork, ENV_TYPE_USER);
+	// Exercise 8 test
+	ENV_CREATE(user_faultalloc, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Schedule and run the first user environment!

@@ -92,6 +92,13 @@ trap_init(void)
 	extern void trap_simderr();
 	extern void trap_syscall();
 
+	// irq entries
+	extern void trap_irq_timer();
+	extern void trap_irq_kbd();
+	extern void trap_irq_serial();
+	extern void trap_irq_spurious();
+	extern void trap_irq_ide();
+	extern void trap_irq_error();
 
 	SETGATE(idt[T_DIVIDE],  0, GD_KT, trap_divide,  0);
 	SETGATE(idt[T_DEBUG], 	0, GD_KT, trap_debug, 	0);
@@ -112,6 +119,14 @@ trap_init(void)
 	SETGATE(idt[T_MCHK], 	0, GD_KT, trap_mchk, 	0);
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, trap_simderr, 0);
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, trap_syscall, 3);
+
+	// irq gate
+	SETGATE(idt[IRQ_OFFSET+IRQ_TIMER], 		0, GD_KT, trap_irq_timer, 	0);
+	SETGATE(idt[IRQ_OFFSET+IRQ_KBD], 		0, GD_KT, trap_irq_kbd, 	0);
+	SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL], 	0, GD_KT, trap_irq_serial, 	0);
+	SETGATE(idt[IRQ_OFFSET+IRQ_SPURIOUS], 	0, GD_KT, trap_irq_spurious,0);
+	SETGATE(idt[IRQ_OFFSET+IRQ_IDE], 		0, GD_KT, trap_irq_ide, 	0);
+	SETGATE(idt[IRQ_OFFSET+IRQ_ERROR], 		0, GD_KT, trap_irq_error, 	0);
 
 	// Per-CPU setup
 	trap_init_percpu();
@@ -225,22 +240,19 @@ trap_dispatch(struct Trapframe *tf)
 		case T_BRKPT: monitor(tf); break;
 		case T_SYSCALL: 
 			//cprintf("Eip: %x\n", tf->tf_eip);
-			//print_trapframe(tf);
 			ret = syscall(tf->tf_regs.reg_eax,
 						  tf->tf_regs.reg_edx,
 						  tf->tf_regs.reg_ecx,
 						  tf->tf_regs.reg_ebx,
 						  tf->tf_regs.reg_edi,
 						  tf->tf_regs.reg_esi);
-			if (ret < 0)
-				panic("trap_dispatch: syscall number invalid");
-			//cprintf("Syscall return number: %u\n", ret);
+			//if (ret < 0)
+			//	panic("trap_dispatch: syscall number invalid");
+			
 			tf->tf_regs.reg_eax = ret;
 			return ;
 		default: break;
 	}
-
-	//cprintf("Met unexpected trap:\n");
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -254,9 +266,16 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+		//cprintf("Clock interrupt on irq 0\n");
+		//print_trapframe(tf);
+		lapic_eoi();
+		sched_yield();
+		return ;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
-	// print_trapframe(tf);
+	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
 	else {
@@ -340,6 +359,7 @@ page_fault_handler(struct Trapframe *tf)
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
 
+	// print_trapframe(tf);
 	// Handle kernel-mode page faults.
 	// LAB 3: Your code here.
 	if ((tf->tf_cs & 3) == 0) {
@@ -380,6 +400,38 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	int r;
+	struct UTrapframe utf;
+
+	if (curenv->env_pgfault_upcall != NULL) {
+		// assign the elements in utf
+		utf.utf_fault_va = fault_va;
+		utf.utf_err = tf->tf_err;
+		utf.utf_regs = tf->tf_regs;
+		utf.utf_eip = tf->tf_eip;
+		utf.utf_eflags = tf->tf_eflags;
+		utf.utf_esp = tf->tf_esp;
+
+		// check whether this exception handler happens when the exception stack 
+		// has page fault.
+		if (tf->tf_esp >= UXSTACKTOP-PGSIZE && 
+			tf->tf_esp <= UXSTACKTOP-1) {
+			tf->tf_esp -= 4; // a word
+		}
+		else 
+			tf->tf_esp = UXSTACKTOP;
+
+		tf->tf_esp -= sizeof(struct UTrapframe);
+
+		// check if we could write to the trapframe
+		user_mem_assert(curenv, (void*)(tf->tf_esp), sizeof(struct UTrapframe), PTE_W);
+
+		if (tf->tf_esp >= UXSTACKTOP-PGSIZE){// no overflow
+			*(struct UTrapframe *)tf->tf_esp = utf;
+			tf->tf_eip = (uint32_t)curenv->env_pgfault_upcall;
+			env_run(curenv);
+		}
+	}
 
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",

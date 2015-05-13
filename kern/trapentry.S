@@ -62,6 +62,15 @@ TRAPHANDLER_NOEC(trap_mchk, T_MCHK)
 TRAPHANDLER_NOEC(trap_simderr, T_SIMDERR) 
 TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL)
 
+/* It is said that all the hardware interrupts are without error code */
+TRAPHANDLER_NOEC(trap_irq_timer, IRQ_OFFSET+IRQ_TIMER);
+TRAPHANDLER_NOEC(trap_irq_kbd, IRQ_OFFSET+IRQ_KBD);
+TRAPHANDLER_NOEC(trap_irq_serial, IRQ_OFFSET+IRQ_SERIAL);
+TRAPHANDLER_NOEC(trap_irq_spurious, IRQ_OFFSET+IRQ_SPURIOUS);
+TRAPHANDLER_NOEC(trap_irq_ide, IRQ_OFFSET+IRQ_IDE);
+TRAPHANDLER_NOEC(trap_irq_error, IRQ_OFFSET+IRQ_ERROR);
+
+
 /*
  * Lab 3: Your code here for _alltraps
  */

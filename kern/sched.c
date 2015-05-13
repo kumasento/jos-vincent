@@ -30,13 +30,13 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 	//cprintf("sched_yield: cpu id %d\n", thiscpu->cpu_id);
-	int curidx = (curenv == NULL) ? -1 : curenv - envs;
-	int idx = curidx + 1;
-	int cnt = 0;
-	for (; cnt < NENV; idx=(idx+1)%NENV, cnt ++) {
-		if (envs[idx].env_status == ENV_RUNNABLE) {
+	int curidx = (curenv == NULL) ? 0 : ENVX(curenv->env_id);
+	int idx;
+	for (idx = 0; idx < NENV; idx ++) {
+		int envidx = (curidx + idx) % NENV;
+		if (envs[envidx].env_status == ENV_RUNNABLE) {
 			//cprintf("selected %d env\n", idx);
-			env_run(&envs[idx]); // here will simply jump
+			env_run(&envs[envidx]); // here will simply jump
 			panic("If run, never come back...\n");
 		}
 	}

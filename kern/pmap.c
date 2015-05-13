@@ -551,6 +551,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 // Hint: The TA solution is implemented using pgdir_walk, page_remove,
 // and page2pa.
 //
+
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
@@ -559,18 +560,11 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	pte_t* pte_addr = pgdir_walk(pgdir, va, 1);
 	if (pte_addr == NULL)
 		return -E_NO_MEM;
+	pp->pp_ref ++;
 	if (*pte_addr & PTE_P) { // check whether this page exists
-		// check if pp and *pte_addr are just one thing
-		if (page2pa(pp) == PTE_ADDR(*pte_addr)) {
-			// reinsert one page
-			pp->pp_ref --;
-		}
-		else {
-			page_remove(pgdir, va);
-		}
+		page_remove(pgdir, va);
 	}
 	*pte_addr = PTE_ADDR(page2pa(pp)) | perm | PTE_P;
-	pp->pp_ref ++;
 	return 0;
 }
 
@@ -716,7 +710,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 	perm = perm | PTE_P | PTE_U;
 	pte_t * pte = NULL; // only check the page table entry
 	for (cur_va = lower_bound; cur_va < upper_bound; cur_va += PGSIZE) {
-		//cprintf("%x\n", (uintptr_t) cur_va);
+		// cprintf("%x\n", (uintptr_t) cur_va);
 		user_mem_check_addr = cur_va;
 		if (cur_va >= ULIM)
 			return -E_FAULT;
