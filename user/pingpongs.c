@@ -25,6 +25,7 @@ umain(int argc, char **argv)
 		if (val == 10)
 			return;
 		++val;
+		cprintf("send 0 from %x to %x\n", sys_getenvid(), who);
 		ipc_send(who, 0, 0, 0);
 		if (val == 10)
 			return;

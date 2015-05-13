@@ -135,10 +135,58 @@ fork(void)
 	return envid;
 }
 
+static int
+nocow_duppage(envid_t envid, unsigned pn)
+{
+	int r;
+	// LAB 4: Your code here.
+	void *addr = (void*) (pn*PGSIZE);
+	pte_t pte = uvpt[pn];
+	if (pte & PTE_W) {
+		if (sys_page_map(0, addr, envid, addr, PTE_U|PTE_P|PTE_W) < 0)
+			panic("can't map page from envid to 0");
+	}
+	else {
+		if (sys_page_map(0, addr, envid, addr, PTE_U|PTE_P) < 0)
+			panic("can't map page from envid to 0");
+	}
+	
+	return 0;
+}
+
 // Challenge!
 int
 sfork(void)
 {
-	panic("sfork not implemented");
-	return -E_INVAL;
+	set_pgfault_handler(pgfault);
+
+	envid_t envid;
+	uint32_t addr;
+
+	envid = sys_exofork();
+	if (envid < 0)
+		panic("sys_exofork: %e", envid);
+	if (envid == 0) {
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+	
+
+	for (addr = UTEXT; addr < USTACKTOP-PGSIZE; addr += PGSIZE)
+		if ((uvpd[PDX(addr)] & PTE_P) && 
+			(uvpt[PGNUM(addr)] & PTE_P) && 
+			(uvpt[PGNUM(addr)] & PTE_U)) 
+			nocow_duppage(envid, PGNUM(addr));
+
+	// COW for stack
+	duppage(envid, PGNUM(addr));
+	if (sys_page_alloc(envid, (void *)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W|PTE_P) < 0)
+		panic("can't alloc page for UXSTACK");
+
+	extern void _pgfault_upcall();
+	sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+
+	if (sys_env_set_status(envid, ENV_RUNNABLE) < 0)
+		panic("can't set status for child env");
+	return envid;
 }

@@ -31,11 +31,15 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 		if (perm_store != NULL) *perm_store = 0;
 		return r;
 	}
+	
+	envid_t curenv_id = sys_getenvid();
+	const volatile struct Env *curenv = envs + ENVX(curenv_id);
+	
 	if (from_env_store != NULL) 
-		*from_env_store = thisenv->env_ipc_from;
+		*from_env_store = curenv->env_ipc_from;
 	if (perm_store != NULL)
-		*perm_store = thisenv->env_ipc_perm;
-	return thisenv->env_ipc_value;
+		*perm_store = curenv->env_ipc_perm;
+	return curenv->env_ipc_value;
 }
 
 // Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
