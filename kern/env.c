@@ -284,8 +284,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	env_free_list = e->env_link;
 	*newenv_store = e;
 
-	//cprintf("%u\n", e->env_id);
-	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
+	//cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;
 }
 
@@ -311,7 +310,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 	uint32_t a_va = ROUNDDOWN((uint32_t)va, PGSIZE);
 	uint32_t a_len = ROUNDUP((uint32_t)len, PGSIZE);
 	uint32_t a_end = ROUNDUP((uint32_t)va+len, PGSIZE);
-	
+
 	uint32_t tmp_va = a_va;
 	struct PageInfo *pp = NULL;
 	int ret = 0;
@@ -417,6 +416,7 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+<<<<<<< HEAD
 	struct Env *newenv;
 
 	// alloc a new env
@@ -432,6 +432,11 @@ env_create(uint8_t *binary, enum EnvType type)
 	// set env_type
 	newenv->env_type = type;
 	//cprintf("passed env_create()\n");
+=======
+
+	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
+	// LAB 5: Your code here.
+>>>>>>> origin/lab5
 }
 
 //
@@ -451,7 +456,7 @@ env_free(struct Env *e)
 		lcr3(PADDR(kern_pgdir));
 
 	// Note the environment's demise.
-	cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
+	// cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 
 	// Flush all mapped pages in the user portion of the address space
 	static_assert(UTOP % PTSIZE == 0);
@@ -525,7 +530,7 @@ env_pop_tf(struct Trapframe *tf)
 {
 	// Record the CPU we are running on for user-space debugging
 	curenv->env_cpunum = cpunum();
-	
+
 	__asm __volatile("movl %0,%%esp\n"
 		"\tpopal\n"
 		"\tpopl %%es\n"

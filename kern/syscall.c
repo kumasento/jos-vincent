@@ -56,10 +56,6 @@ sys_env_destroy(envid_t envid)
 
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
-	if (e == curenv)
-		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
-	else
-		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
 	env_destroy(e);
 	return 0;
 }
@@ -93,7 +89,7 @@ sys_exofork(void)
 	newenv->env_status = ENV_NOT_RUNNABLE;
 	// copy the register information
 	newenv->env_tf = curenv->env_tf;
-	// if we run 
+	// if we run
 	newenv->env_tf.tf_regs.reg_eax = 0;
 
 	return newenv->env_id;
@@ -118,7 +114,7 @@ sys_env_set_status(envid_t envid, int status)
 	// LAB 4: Your code here.
 	struct Env *setenv = NULL;
 	int r = envid2env(envid, &setenv, 1);
-	if (r < 0) 
+	if (r < 0)
 		return r;
 	if (setenv == NULL)
 		return -E_BAD_ENV;
@@ -127,6 +123,22 @@ sys_env_set_status(envid_t envid, int status)
 		return 0;
 	}
 	return -E_INVAL;
+}
+
+// Set envid's trap frame to 'tf'.
+// tf is modified to make sure that user environments always run at code
+// protection level 3 (CPL 3) with interrupts enabled.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	// LAB 5: Your code here.
+	// Remember to check whether the user has supplied us with a good
+	// address!
+	panic("sys_env_set_trapframe not implemented");
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -143,7 +155,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	// LAB 4: Your code here.
 	struct Env *setenv = NULL;
 	int r = envid2env(envid, &setenv, 1);
-	if (r < 0) 
+	if (r < 0)
 		return r;
 	if (setenv == NULL)
 		return -E_BAD_ENV;
@@ -180,7 +192,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	// LAB 4: Your code here.
 	struct Env *e = NULL;
 	int r = envid2env(envid, &e, 1);
-	if (r < 0) 
+	if (r < 0)
 		return r;
 	if (e == NULL)
 		return -E_BAD_ENV;
@@ -190,8 +202,8 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 
 	if ((uint32_t)va >= UTOP || (((uint32_t)va) % PGSIZE))
 		return -E_INVAL;
-	if ((perm & PTE_U) == 0 || 
-		(perm & PTE_P) == 0 || 
+	if ((perm & PTE_U) == 0 ||
+		(perm & PTE_P) == 0 ||
 		(perm & (!PTE_U) & (!PTE_P) & (!PTE_AVAIL) & (!PTE_W)) != 0)
 		return -E_INVAL;
 	r = page_insert(e->env_pgdir, pp, va, perm);
@@ -250,8 +262,8 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	if (pp == NULL)
 		return -E_INVAL;
 	//cprintf("passed page exist check ...\n");
-	if ((perm & PTE_U) == 0 || 
-		(perm & PTE_P) == 0 || 
+	if ((perm & PTE_U) == 0 ||
+		(perm & PTE_P) == 0 ||
 		(perm & (!PTE_U) & (!PTE_P) & (!PTE_AVAIL) & (!PTE_W)) != 0)
 		return -E_INVAL;
 	if ((perm & PTE_W) && !(*pte_addr & PTE_W))
@@ -277,7 +289,7 @@ sys_page_unmap(envid_t envid, void *va)
 	// LAB 4: Your code here.
 	struct Env *e = NULL;
 	int r = envid2env(envid, &e, 1);
-	if (r < 0) 
+	if (r < 0)
 		return r;
 	if (e == NULL)
 		return -E_BAD_ENV;
@@ -331,7 +343,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	// LAB 4: Your code here.
 	struct Env *dstenv;
 	int r = envid2env(envid, &dstenv, 0);
-	if (r < 0) 
+	if (r < 0)
 		return r;
 	if (!dstenv->env_ipc_recving || dstenv->env_ipc_from != 0)
 		return -E_IPC_NOT_RECV;
@@ -348,8 +360,8 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 			struct PageInfo *pp = page_lookup(srcenv->env_pgdir, srcva, &pte_addr);
 			if (pp == NULL)
 				return -E_INVAL;
-			if ((perm & PTE_U) == 0 || 
-				(perm & PTE_P) == 0 || 
+			if ((perm & PTE_U) == 0 ||
+				(perm & PTE_P) == 0 ||
 				(perm & (!PTE_U) & (!PTE_P) & (!PTE_AVAIL) & (!PTE_W)) != 0)
 				return -E_INVAL;
 			if ((perm & PTE_W) && !(*pte_addr & PTE_W))
@@ -390,7 +402,7 @@ sys_ipc_recv(void *dstva)
 	//cprintf("[%08x] recving %08p ...\n", curenv->env_id, dstva);
 	if ((uint32_t) dstva < UTOP && (((uint32_t) dstva) % PGSIZE))
 		return -E_INVAL;
-	
+
 	curenv->env_ipc_dstva = dstva;
 	curenv->env_status = ENV_NOT_RUNNABLE;
 
@@ -406,12 +418,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
 	int r;
-	switch (syscallno) 
+	switch (syscallno)
 	{
 		case SYS_cputs: 					{ sys_cputs((const char *)a1, (size_t)a2); return 0; }
 		case SYS_cgetc: 					return sys_cgetc();
 		case SYS_getenvid: 					return sys_getenvid();
-		case SYS_env_destroy: 				return sys_env_destroy(a1); 
+		case SYS_env_destroy: 				return sys_env_destroy(a1);
 		case SYS_yield:						sys_yield();
 		case SYS_exofork:					return sys_exofork();
 		case SYS_env_set_status:			return sys_env_set_status(a1, a2);

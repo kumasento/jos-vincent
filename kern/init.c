@@ -71,6 +71,9 @@ i386_init(void)
 	boot_aps();
 	cprintf("passed boot_aps()\n");
 
+	// Start fs.
+	ENV_CREATE(fs_fs, ENV_TYPE_FS);
+
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
@@ -80,7 +83,7 @@ i386_init(void)
 	//ENV_CREATE(user_softint, ENV_TYPE_USER);
 	//ENV_CREATE(user_badsegment, ENV_TYPE_USER);
 	//ENV_CREATE(user_divzero, ENV_TYPE_USER);
-	
+
 	// Exercise 6 test
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
@@ -91,6 +94,9 @@ i386_init(void)
 	// Exercise 8 test
 	ENV_CREATE(user_faultalloc, ENV_TYPE_USER);
 #endif // TEST*
+
+	// Should not be necessary - drains keyboard because interrupt has given up.
+	kbd_intr();
 
 	// Schedule and run the first user environment!
 	sched_yield();
@@ -118,7 +124,7 @@ boot_aps(void)
 		if (c == cpus + cpunum())  // We've started already.
 			continue;
 
-		// Tell mpentry.S what stack to use 
+		// Tell mpentry.S what stack to use
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
 
@@ -133,7 +139,7 @@ boot_aps(void)
 void
 mp_main(void)
 {
-	// We are in high EIP now, safe to switch to kern_pgdir 
+	// We are in high EIP now, safe to switch to kern_pgdir
 	lcr3(PADDR(kern_pgdir));
 	cprintf("SMP: CPU %d starting\n", cpunum());
 
