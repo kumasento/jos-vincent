@@ -11,8 +11,8 @@ void
 umain(int argc, char **argv)
 {
 	int r;
-
-	if (argc != 0)
+	//cprintf("enter environment: %d\n", sys_getenvid());
+	if (argc != 0) 
 		childofspawn();
 
 	if ((r = sys_page_alloc(0, VA, PTE_P|PTE_W|PTE_U|PTE_SHARE)) < 0)
@@ -31,6 +31,7 @@ umain(int argc, char **argv)
 	// check spawn
 	if ((r = spawnl("/testpteshare", "testpteshare", "arg", 0)) < 0)
 		panic("spawn: %e", r);
+	//cprintf("[%d] child id spawned: %d\n", sys_getenvid(), r);
 	wait(r);
 	cprintf("spawn handles PTE_SHARE %s\n", strcmp(VA, msg2) == 0 ? "right" : "wrong");
 
@@ -40,6 +41,7 @@ umain(int argc, char **argv)
 void
 childofspawn(void)
 {
+	cprintf("child of spawn.\n");
 	strcpy(VA, msg2);
 	exit();
 }

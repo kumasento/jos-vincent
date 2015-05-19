@@ -134,7 +134,6 @@ spawn(const char *prog, const char **argv)
 
 	if ((r = sys_env_set_status(child, ENV_RUNNABLE)) < 0)
 		panic("sys_env_set_status: %e", r);
-
 	return child;
 
 error:
@@ -159,7 +158,6 @@ spawnl(const char *prog, const char *arg0, ...)
 	while(va_arg(vl, void *) != NULL)
 		argc++;
 	va_end(vl);
-
 	// Now that we have the size of the args, do a second pass
 	// and store the values in a VLA, which has the format of argv
 	const char *argv[argc+2];
@@ -195,6 +193,8 @@ init_stack(envid_t child, const char **argv, uintptr_t *init_esp)
 	string_size = 0;
 	for (argc = 0; argv[argc] != 0; argc++)
 		string_size += strlen(argv[argc]) + 1;
+
+	//cprintf("child %d argc %d\n", child, argc);
 
 	// Determine where to place the strings and the argv array.
 	// Set up pointers into the temporary page 'UTEMP'; we'll map a page
@@ -301,6 +301,17 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
+	uint32_t addr;
+	for (addr = UTEXT; addr < USTACKTOP; addr += PGSIZE) {
+		//cprintf("addr: 0x%08x\n", addr);
+		if ((uvpd[PDX(addr)] & PTE_P) && 
+			(uvpt[PGNUM(addr)] & PTE_P) && 
+			(uvpt[PGNUM(addr)] & PTE_U) &&
+			(uvpt[PGNUM(addr)] & PTE_SHARE)) {
+			if (sys_page_map(0, (void*)addr, child, (void*)addr, uvpt[PGNUM(addr)] & PTE_SYSCALL) < 0)
+				panic("copy_shared_pages: can't copy page 0x%08x", addr);
+		}
+	}
 	return 0;
 }
 

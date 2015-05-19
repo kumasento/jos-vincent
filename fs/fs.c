@@ -142,24 +142,34 @@ static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
     // LAB 5: Your code here.
-	if (filebno >= NDIRECT + NINDIRECT)
+	if (filebno >= NDIRECT + NINDIRECT) {
+		cprintf("file_block_walk: failed in branch 1.\n");
 		return -E_INVAL;
+	}
 	if (filebno < NDIRECT) {
 		*ppdiskbno = &f->f_direct[filebno];
 		return 0;
 	}
 	if (f->f_indirect == 0) {
-		if (!alloc)
+		if (!alloc) {
+			cprintf("file_block_walk: failed in branch 2.\n");
 			return -E_NOT_FOUND;
-		if ((f->f_indirect = alloc_block()) < 0)
+		}
+		if ((f->f_indirect = alloc_block()) < 0) {
+			cprintf("file_block_walk: failed in branch 3.\n");
 			return -E_NO_DISK;
+		}
 	}
 	uint32_t *indirect = diskaddr(f->f_indirect);
 	if (indirect[filebno-NDIRECT] == 0) {
-		if (!alloc) 
+		if (!alloc) {
+			cprintf("file_block_walk: failed in branch 4.\n");
 			return -E_NOT_FOUND;
-		if ((indirect[filebno-NDIRECT] = alloc_block()) < 0) 
+		}
+		if ((indirect[filebno-NDIRECT] = alloc_block()) < 0) {
+			cprintf("file_block_walk: failed in branch 5.\n");
 			return -E_NO_DISK;
+		}
 	}
 	*ppdiskbno = &indirect[filebno-NDIRECT];
 	// how to clear the block?
@@ -180,9 +190,11 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
     // LAB 5: Your code here.
 	int r;
 	uint32_t *pdiskbno;
-	if ((r = file_block_walk(f, filebno, &pdiskbno, 0)) < 0)
+	//cprintf("file_get_block: filename: %s filebno %d.\n", f->f_name, filebno);
+
+	// should I set alloc bit to 1 here?
+	if ((r = file_block_walk(f, filebno, &pdiskbno, 1)) < 0)
 		return r;
-	//cprintf("file_get_block: filename: %s filebno %d blockno %d\n", f->f_name, filebno, *pdiskbno);
 	if (!(*pdiskbno)) {
 		if ((r = alloc_block()) < 0) 
 			return r;
@@ -388,14 +400,16 @@ file_read(struct File *f, void *buf, size_t count, off_t offset)
 int
 file_write(struct File *f, const void *buf, size_t count, off_t offset)
 {
+	//cprintf("file_write: file %s size: %d count %d offset %d\n", f->f_name, f->f_size, count, offset);
 	int r, bn;
 	off_t pos;
 	char *blk;
 
 	// Extend file if necessary
-	if (offset + count > f->f_size)
+	if (offset + count > f->f_size) {
 		if ((r = file_set_size(f, offset + count)) < 0)
 			return r;
+	}
 
 	for (pos = offset; pos < offset + count; ) {
 		if ((r = file_get_block(f, pos / BLKSIZE, &blk)) < 0)

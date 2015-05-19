@@ -72,7 +72,11 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	void *addr = (void*) (pn*PGSIZE);
 	pte_t pte = uvpt[pn];
-	if ((pte & PTE_W) || (pte & PTE_COW)) {
+	if ((pte & PTE_SHARE)) {
+		if (sys_page_map(0, addr, envid, addr, PTE_SYSCALL & pte) < 0)
+			panic("duppage: PTE_SHARE mapping failed");
+	}
+	else if ((pte & PTE_W) || (pte & PTE_COW)) {
 		if (sys_page_map(0, addr, envid, addr, PTE_COW|PTE_U|PTE_P) < 0)
 			panic("can't map page from envid to 0");
 		if (sys_page_map(0, addr, 0, addr, PTE_COW|PTE_U|PTE_P) < 0)
