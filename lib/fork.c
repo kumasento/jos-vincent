@@ -14,7 +14,7 @@
 static void
 pgfault(struct UTrapframe *utf)
 {
-	// panic("pgfault");
+	//panic("pgfault");
 	void *addr = (void *) utf->utf_fault_va;
 	uint32_t err = utf->utf_err;
 	int r;
@@ -24,7 +24,6 @@ pgfault(struct UTrapframe *utf)
 	// Hint: 
 	//   Use the read-only page table mappings at uvpt
 	//   (see <inc/memlayout.h>).
-
 	// LAB 4: Your code here.
 	pde_t pde = uvpd[PDX(addr)];
 	pte_t pte = uvpt[PGNUM(addr)];
@@ -121,7 +120,7 @@ fork(void)
 		return 0;
 	}
 	
-
+	//cprintf("fork part 1\n");
 	for (addr = UTEXT; addr < USTACKTOP; addr += PGSIZE)
 		if ((uvpd[PDX(addr)] & PTE_P) && 
 			(uvpt[PGNUM(addr)] & PTE_P) && 
@@ -130,7 +129,7 @@ fork(void)
 
 	if (sys_page_alloc(envid, (void *)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W|PTE_P) < 0)
 		panic("can't alloc page for UXSTACK");
-
+	//cprintf("fork part 2\n");
 	extern void _pgfault_upcall();
 	sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
 

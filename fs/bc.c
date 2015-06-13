@@ -43,7 +43,8 @@ bc_pgfault(struct UTrapframe *utf)
 	// Sanity check the block number.
 	if (super && blockno >= super->s_nblocks)
 		panic("reading non-existent block %08x\n", blockno);
-
+	
+	
 	// Allocate a page in the disk map region, read the contents
 	// of the block from the disk into that page.
 	// Hint: first round addr to page boundary. fs/ide.c has code to read

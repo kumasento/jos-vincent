@@ -84,8 +84,9 @@ check_bitmap(void)
 	uint32_t i;
 
 	// Make sure all bitmap blocks are marked in-use
-	for (i = 0; i * BLKBITSIZE < super->s_nblocks; i++)
+	for (i = 0; i * BLKBITSIZE < super->s_nblocks; i++) {
 		assert(!block_is_free(2+i));
+	}
 
 	// Make sure the reserved and root blocks are marked in-use.
 	assert(!block_is_free(0));
@@ -106,11 +107,11 @@ fs_init(void)
 {
 	static_assert(sizeof(struct File) == 256);
 
-       // Find a JOS disk.  Use the second IDE disk (number 1) if availabl
-       if (ide_probe_disk1())
-               ide_set_disk(1);
-       else
-               ide_set_disk(0);
+	// Find a JOS disk.  Use the second IDE disk (number 1) if availabl
+	if (ide_probe_disk1())
+		ide_set_disk(1);
+	else
+		ide_set_disk(0);
 	bc_init();
 
 	// Set "super" to point to the super block.

@@ -232,7 +232,7 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-	//cprintf("trap_dispatch with trap number: %d\n", tf->tf_trapno);
+	// cprintf("trap_dispatch with trap number: %d\n", tf->tf_trapno);
 	int32_t ret;
 	switch(tf->tf_trapno) 
 	{
@@ -369,7 +369,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
-
+	//cprintf("user page fault: 0x%08x\n", fault_va);
 	// print_trapframe(tf);
 	// Handle kernel-mode page faults.
 	// LAB 3: Your code here.
