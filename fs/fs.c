@@ -106,18 +106,18 @@ fs_init(void)
 {
 	static_assert(sizeof(struct File) == 256);
 
-       // Find a JOS disk.  Use the second IDE disk (number 1) if availabl
-       if (ide_probe_disk1())
-               ide_set_disk(1);
-       else
-               ide_set_disk(0);
+   // Find a JOS disk.  Use the second IDE disk (number 1) if availabl
+   if (ide_probe_disk1())
+           ide_set_disk(1);
+   else
+           ide_set_disk(0);
 	bc_init();
 
 	// Set "super" to point to the super block.
 	super = diskaddr(1);
 	check_super();
 
-	// Set "bitmap" to the beginning of the first bitmap block.
+	// Set "bitmap" tomo the beginning of the first bitmap block.
 	bitmap = diskaddr(2);
 	check_bitmap();
 }

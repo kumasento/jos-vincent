@@ -7,7 +7,33 @@ diskaddr(uint32_t blockno)
 {
 	if (blockno == 0 || (super && blockno >= super->s_nblocks))
 		panic("bad block number %08x in diskaddr", blockno);
-	return (char*) (DISKMAP + blockno * BLKSIZE);
+	// here we get the correct cache block
+	if (blockno <= 1) {
+		return (char*) (DISKMAP + blockno * BLKSIZE);
+	}
+	int i;
+	int lu_cacheblk_id = 0;
+	struct CacheBlock lu_cacheblk = blkcache[0];
+	for (i = 1; i < DISKCACHESIZE; i++) {
+		struct CacheBlock cur_cacheblk = blkcache[i];
+		if (lu_cacheblk.count > cur_cacheblk.count) {
+			lu_cacheblk_id = i;
+			lu_cacheblk = cur_cacheblk;
+		}
+	}
+	// replace or just add
+	if (lu_cacheblk.blockno == blockno) {
+		blkcache[lu_cacheblk_id].count ++;
+		return (void*) CACHEBLK2VA(lu_cacheblk_id);
+	}
+	// we need to replace:
+	// first flush:
+	
+	flush_block(CACHEBLK2VA(lu_cacheblk_id));
+	blkcache[lu_cacheblk_id].blockno = blockno;
+	blkcache[lu_cacheblk_id].count = 0;
+	return CACHEBLK2VA(lu_cacheblk_id);
+	//return (char*) (DISKMAP + blockno * BLKSIZE);
 }
 
 // Is this virtual address mapped?
@@ -24,13 +50,21 @@ va_is_dirty(void *va)
 	return (uvpt[PGNUM(va)] & PTE_D) != 0;
 }
 
+uint32_t cache_find_block(void *addr) {
+	if ((uint32_t)addr - DISKMAP < DISKCACHEOFF) {
+		return ((uint32_t)addr - DISKMAP)>>PGSHIFT;
+	}
+	return blkcache[VA2CACHEBLK(addr)].blockno;
+	panic("cache_find_block: can't find addr");
+}
+
 // Fault any disk block that is read in to memory by
 // loading it from disk.
 static void
 bc_pgfault(struct UTrapframe *utf)
 {
 	void *addr = (void *) utf->utf_fault_va;
-	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
+	uint32_t blockno = cache_find_block(addr);
 	int r;
 	int i;
 	int sectno;
@@ -81,7 +115,7 @@ bc_pgfault(struct UTrapframe *utf)
 void
 flush_block(void *addr)
 {
-	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
+	uint32_t blockno = cache_find_block(addr);
 	int r;
 	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
 		panic("flush_block of bad va %08x", addr);
@@ -133,7 +167,10 @@ bc_init(void)
 	set_pgfault_handler(bc_pgfault);
 	check_bc();
 
+	cprintf("diskaddr: %d -> 0x%08x\n", 1, diskaddr(1));
+	cprintf("sizeof super %d\n", sizeof super);
 	// cache the super block by reading it once
 	memmove(&super, diskaddr(1), sizeof super);
+	cprintf("super has %d blocks\n", super.s_nblocks);
 }
 
