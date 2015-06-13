@@ -21,7 +21,7 @@ struct CacheBlock {
 } blkcache[DISKCACHESIZE];
 
 #define VA2CACHEBLK(va) (((uint32_t)(va)-DISKMAP-DISKCACHEOFF)>>PGSHIFT)
-#define CACHEBLK2VA(blkoff) (void*)((blkoff * BLKSIZE) + DISKMAP + 2)
+#define CACHEBLK2VA(blkoff) (void*)(((blkoff+DISKCACHEOFF)*BLKSIZE) + DISKMAP)
 
 struct Super *super;		// superblock
 uint32_t *bitmap;		// bitmap blocks mapped in memory
