@@ -11,16 +11,16 @@
 /* Maximum disk size we can handle (3GB) */
 #define DISKSIZE	0xC0000000
 
-#define DISKCACHEOFF 2
-#define DISKCACHESIZE 10 // number of blocks in the cache
+#define DISKCACHEOFF 3
+#define DISKCACHESIZE 100 // number of blocks in the cache
 
 struct CacheBlock {
-	uint32_t va;
+	//uint32_t va;
 	uint32_t blockno;
 	uint32_t count;
 } blkcache[DISKCACHESIZE];
 
-#define VA2CACHEBLK(va) (((uint32_t)(va)-DISKMAP-DISKCACHEOFF)>>PGSHIFT)
+#define VA2CACHEBLK(va) ((((uint32_t)(va)-DISKMAP)>>PGSHIFT)-DISKCACHEOFF)
 #define CACHEBLK2VA(blkoff) (void*)(((blkoff+DISKCACHEOFF)*BLKSIZE) + DISKMAP)
 
 struct Super *super;		// superblock

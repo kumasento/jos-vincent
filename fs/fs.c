@@ -195,6 +195,7 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
 	// should I set alloc bit to 1 here?
 	if ((r = file_block_walk(f, filebno, &pdiskbno, 1)) < 0)
 		return r;
+	//cprintf("get block number: %d\n", *pdiskbno);
 	if (!(*pdiskbno)) {
 		if ((r = alloc_block()) < 0) 
 			return r;

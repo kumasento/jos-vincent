@@ -13,33 +13,37 @@ diskaddr(uint32_t blockno)
 	}
 	int i;
 
+	//cprintf("request block number %d\n", blockno);
+	//for (i = 0; i < DISKCACHESIZE; i++) {
+	//	cprintf("cache block %3d: 0x%08x %010u %010u\n", 
+	//		i, CACHEBLK2VA(i), blkcache[i].blockno, blkcache[i].count);
+	//}
 
 	int lu_cacheblk_id = 0;
 	struct CacheBlock lu_cacheblk = blkcache[0];
+	if (lu_cacheblk.blockno == blockno) {
+		blkcache[lu_cacheblk_id].count ++;
+		return (void*) CACHEBLK2VA(lu_cacheblk_id);
+	}
 	for (i = 1; i < DISKCACHESIZE; i++) {
 		struct CacheBlock cur_cacheblk = blkcache[i];
+		if (cur_cacheblk.blockno == blockno) {
+			blkcache[i].count ++;
+			return (void*) CACHEBLK2VA(i);
+		}
 		if (lu_cacheblk.count > cur_cacheblk.count) {
 			lu_cacheblk_id = i;
 			lu_cacheblk = cur_cacheblk;
 		}
 	}
-	// replace or just add
-	if (lu_cacheblk.blockno == blockno) {
-		blkcache[lu_cacheblk_id].count ++;
-		return (void*) CACHEBLK2VA(lu_cacheblk_id);
-	}
 	// we need to replace:
 	// first flush:
-	
+	//cprintf("0x%08x\n", lu_cacheblk_id);
+
 	flush_block(CACHEBLK2VA(lu_cacheblk_id));
 	blkcache[lu_cacheblk_id].blockno = blockno;
-	blkcache[lu_cacheblk_id].count = 0;
-
-	cprintf("request block number %d\n", blockno);
-	for (i = 0; i < DISKCACHESIZE; i++) {
-		cprintf("cache block %3d: 0x%08x %010u %010u\n", 
-			i, CACHEBLK2VA(i), blkcache[i].blockno, blkcache[i].count);
-	}
+	blkcache[lu_cacheblk_id].count = 1;
+	
 	return CACHEBLK2VA(lu_cacheblk_id);
 	//return (char*) (DISKMAP + blockno * BLKSIZE);
 }
@@ -59,12 +63,15 @@ va_is_dirty(void *va)
 }
 
 uint32_t cache_find_block(void *addr) {
+	//cprintf("finding address 0x%08x %d\n", addr, VA2CACHEBLK(addr));
 	if ((uint32_t)addr - DISKMAP < DISKCACHEOFF * BLKSIZE) {
-		//cprintf("%08x\n", (uint32_t)addr-DISKMAP);
+		cprintf("%08x\n", (uint32_t)addr-DISKMAP);
 		return ((uint32_t)addr - DISKMAP)/BLKSIZE;
+	} else {
+		//printf("got %d\n", blkcache[VA2CACHEBLK(addr)].blockno);
+		return blkcache[VA2CACHEBLK(addr)].blockno;
 	}
-	return blkcache[VA2CACHEBLK(addr)].blockno;
-	panic("cache_find_block: can't find addr");
+	//panic("cache_find_block: can't find addr");
 }
 
 // Fault any disk block that is read in to memory by
