@@ -3,7 +3,7 @@
 #define BUFSIZ 1024		/* Find the buffer overrun bug! */
 int debug = 0;
 
-
+char s_buf[BUFSIZ]; // store the tmp grouping command
 // gettoken(s, 0) prepares gettoken for subsequent calls and returns 0.
 // gettoken(0, token) parses a shell token from the previously set string,
 // null-terminates that token, stores the token pointer in '*token',
@@ -21,17 +21,66 @@ int gettoken(char *s, char **token);
 void
 runcmd(char* s)
 {
+	cprintf("runcmd: %s %08p\n", s, s);
 	char *argv[MAXARGS], *t, argv0buf[BUFSIZ];
 	int argc, c, i, r, p[2], fd, pipe_child;
+	int bg = 0;
+	// first of all, we need to find out whether we have & in the end
+	for (i = strlen(s)-1; i >= 0; i--) {
+		if (s[i] == '&') 
+			bg = 1;
+		else if (s[i] != ' ')
+			break;
+	}
+	s[i+1] = '\0';
+
+	int bufsize = 0;
+	int hasbuf = 0;
+	int inbuf;
 
 	pipe_child = 0;
+	int seq_child = 0;
 	gettoken(s, 0);
 
 again:
+	if (hasbuf) {
+		cprintf("current command: %s\n", s);
+		gettoken(s, 0);
+	} 
+	s_buf[0] = '\0';
+	bufsize = 0;
+	hasbuf = 0;
+	inbuf = 0;
 	argc = 0;
+	
 	while (1) {
-		switch ((c = gettoken(0, &t))) {
-
+		//cprintf("inbuf: %d\n", inbuf);
+		c = gettoken(0, &t);
+		if (t != NULL)
+			cprintf("%d:\t%c %s %d\n", bufsize, c, t, inbuf);
+		if (inbuf != 0) {
+			if (c == '(') 
+				inbuf ++;
+			else if (c == ')') 
+				inbuf --;
+			if (inbuf != 0) {
+				if (c != 'w') {
+					s_buf[bufsize++] = c;
+					s_buf[bufsize] = '\0';
+				} else {
+					for (i = 0; i < strlen(t); i++)  
+						s_buf[bufsize+i] = t[i];
+					bufsize += strlen(t);
+					s_buf[bufsize] = '\0';
+				}
+			}
+			continue;
+		}
+		switch (c) {
+		case '(':
+			hasbuf = 1;
+			inbuf = 1;
+			break;
 		case 'w':	// Add an argument
 			if (argc == MAXARGS) {
 				cprintf("too many arguments\n");
@@ -93,6 +142,7 @@ again:
 				exit();
 			}
 			if (r == 0) {
+				hasbuf = 0;
 				if (p[0] != 0) {
 					dup(p[0], 0);
 					close(p[0]);
@@ -111,6 +161,25 @@ again:
 			panic("| not implemented");
 			break;
 
+		case ';':
+			// first finish running the current process
+			if ((r = fork()) < 0) {
+				cprintf("fork: %e", r);
+				exit();
+			}
+			if (r == 0) {
+				// the child process goto run the previous parsed command
+				goto runit;
+			} else {
+				// the father process will wait, until child has finished
+				wait(r);
+				seq_child = 1;
+				cprintf("child process finished\n");
+				hasbuf = 0;
+				goto again;
+			}
+			break;
+
 		case 0:		// String is complete
 			// Run the current command!
 			goto runit;
@@ -118,11 +187,19 @@ again:
 		default:
 			panic("bad return %d from gettoken", c);
 			break;
-
 		}
 	}
 
 runit:
+	if (hasbuf) {
+		// then this command should run the command inside the buffer
+		cprintf("buffer content: %s\n", s_buf);
+		strcpy(s, s_buf);
+		//runcmd(s);
+		goto again;
+		return ;
+	}
+
 	// Return immediately if command line was empty.
 	if(argc == 0) {
 		if (debug)
@@ -142,12 +219,12 @@ runit:
 	argv[argc] = 0;
 
 	// Print the command.
-	if (debug) {
+	//if (debug) {
 		cprintf("[%08x] SPAWN:", thisenv->env_id);
 		for (i = 0; argv[i]; i++)
 			cprintf(" %s", argv[i]);
 		cprintf("\n");
-	}
+	//}
 
 	// Spawn the command!
 	if ((r = spawn(argv[0], (const char**) argv)) < 0)
@@ -157,16 +234,20 @@ runit:
 	// spawned command to exit.
 	close_all();
 	if (r >= 0) {
-		if (debug)
-			cprintf("[%08x] WAIT %s %08x\n", thisenv->env_id, argv[0], r);
-		wait(r);
-		if (debug)
-			cprintf("[%08x] wait finished\n", thisenv->env_id);
+		if (bg) {
+			cprintf("[%08x] background %s %08x\n", thisenv->env_id, argv[0], r);
+		} else {
+			if (debug)
+				cprintf("[%08x] WAIT %s %08x\n", thisenv->env_id, argv[0], r);
+			wait(r);
+			if (debug)
+				cprintf("[%08x] wait finished\n", thisenv->env_id);
+		}
 	}
 
 	// If we were the left-hand part of a pipe,
 	// wait for the right-hand part to finish.
-	if (pipe_child) {
+	if (pipe_child && seq_child) {
 		if (debug)
 			cprintf("[%08x] WAIT pipe_child %08x\n", thisenv->env_id, pipe_child);
 		wait(pipe_child);
@@ -244,7 +325,6 @@ gettoken(char *s, char **p1)
 {
 	static int c, nc;
 	static char* np1, *np2;
-
 	if (s) {
 		nc = _gettoken(s, &np1, &np2);
 		return 0;

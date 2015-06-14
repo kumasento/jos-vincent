@@ -31,7 +31,7 @@ pgfault(struct UTrapframe *utf)
 	if (!(err & FEC_WR) || !(pde & PTE_P) || !(pte & PTE_P) || !(pte & PTE_COW)){
 		if (!(err & FEC_WR)) panic("not a write action.");
 		if (!(pde & PTE_P)) panic("page directory missed.");
-		if (!(pte & PTE_P)) panic("page table missed.");
+		if (!(pte & PTE_P)) { cprintf("addr: 0x%08x\n", addr); panic("page table missed."); }
 		if (!(pte & PTE_COW)) panic("not a COW page.");
 	}
 	// Allocate a new page, map it at a temporary location (PFTEMP),
